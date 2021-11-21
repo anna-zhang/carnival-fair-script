@@ -20,11 +20,12 @@ class Wheel:
         self.wheel2 = {"vertex_indices": {}, "edge_indices": {}}
         self.posts = {"vertex_indices": {}, "edge_indices": {}}
         
-        self.create_wheel((self.center[0], self.center[1] - (0.25 * self.size), self.center[2]), self.size, self.num_carts, self.wheel1) # 2.0 is the radius of a ring holding a cart
-        self.create_wheel((self.center[0], self.center[1] + (0.25 * self.size), self.center[2]), self.size, self.num_carts, self.wheel2)
+        self.create_wheel((self.center[0], self.center[1] - (0.15 * self.size), self.center[2]), self.size, self.num_carts, self.wheel1) # 2.0 is the radius of a ring holding a cart
+        self.create_wheel((self.center[0], self.center[1] + (0.15 * self.size), self.center[2]), self.size, self.num_carts, self.wheel2)
         self.connect_wheels()
         self.create_posts(self.wheel1, 1)
         self.create_posts(self.wheel2, 2)
+        self.create_internal_support()
     
     def create_wheel(self, center, radius, num_vertices, wheel_dict): # add vertices of circle with center "center" and radius "radius"
             theta = (2 * pi) / num_vertices # calculate angle of each slice of the circle
@@ -95,6 +96,13 @@ class Wheel:
         self.edges.append([wheel["vertex_indices"]["center"], total_vertices])
         self.edges.append([wheel["vertex_indices"]["center"], total_vertices + 1])
         self.posts["edge_indices"]["wheel" + str(wheel_num)] = [total_edges, total_edges + 1]
+        
+    def create_internal_support(self):
+        # create bar that goes through the two center vertices
+        wheel1_center_vi = self.wheel1["vertex_indices"]["center"]
+        wheel2_center_vi = self.wheel2["vertex_indices"]["center"]
+        self.edges.append([wheel1_center_vi, wheel2_center_vi]) # create an edge between the centers of the two wheels
+        self.posts["edge_indices"]["center_bar"] = len(self.edges) - 1
             
                 
  
