@@ -9,13 +9,14 @@ import bmesh
 class Cart:
     def __init__(self, center, size):
         self.center = center
-        self.size = size
+        self.size = 0.30 * 3.0 # will be the size of every ring on the ferris wheel
         
         self.vertices = [] # vertices of the ferris wheel cart
         self.edges = [] # edges of the ferris wheel cart
         self.faces = [] # faces of the ferris wheel cart
         self.top = {"vertex_indices": {}, "edge_indices": {}}
         self.base = {"vertex_indices": {}, "edge_indices": {}}
+        self.pole = {"vertex_indices": {}, "edge_indices": {}}
         
         self.create_cart(self.center, self.size)
         
@@ -52,18 +53,46 @@ class Cart:
             circle_dict["edge_indices"]["outer_circle_" + str(circle_num)] = circle_edges
             
               
-    def create_cart(self, center, size):    
+    def create_cart(self, center, size): 
+        # create top cylinder
+        self.create_horizontal_circle((center[0], center[1], center[2] + 1.0), size, 6, self.top, 1) # create top hexagon of the top cylinder
+        self.create_horizontal_circle((center[0], center[1], center[2] + 0.90), size, 6, self.top, 2) # create top hexagon of the top cylinder
+        top_circle1_vertices = self.top["vertex_indices"]["outer_circle_1"] # get list of numbers corresponding to the indices of the vertices of the top hexagon of the top cylinder
+        top_circle2_vertices = self.top["vertex_indices"]["outer_circle_2"] # get list of numbers corresponding to the indices of the vertices of the bottom hexagon of the top cylinder
+        top_connect_edges = [] # hold edges connecting the hexagons
+        total_edges = len(self.edges) # the total number of edges
+        for i in range(6): # go through every vertex of the hexagon circle
+            self.edges.append([top_circle1_vertices[i], top_circle2_vertices[i]]) # create an edge between the corresponding vertices on the two hexagons
+            top_connect_edges.append(total_edges + i) # store what index that newly added edge is within the entire edges list 
+        self.top["edge_indices"]["top"] = top_connect_edges 
+        
         # create base basket
         self.create_horizontal_circle(center, size, 6, self.base, 1) # create top hexagon of the basket
-        self.create_horizontal_circle((center[0], center[1], center[2] - 3.0), size / 1.5, 6, self.base, 2) # create bottom hexagon of the basket
+        self.create_horizontal_circle((center[0], center[1], center[2] - 1.0), size / 1.5, 6, self.base, 2) # create bottom hexagon of the basket
         base_circle1_vertices = self.base["vertex_indices"]["outer_circle_1"] # get list of numbers corresponding to the indices of the vertices of the top hexagon of the basket
         base_circle2_vertices = self.base["vertex_indices"]["outer_circle_2"] # get list of numbers corresponding to the indices of the vertices of the bottom hexagon of the basket
         base_connect_edges = [] # hold edges connecting the hexagons
         total_edges = len(self.edges) # the total number of edges
         for i in range(6): # go through every vertex of the hexagon circle
             self.edges.append([base_circle1_vertices[i], base_circle2_vertices[i]]) # create an edge between the corresponding vertices on the two hexagons
-            base_connect_edges.append(total_edges + i) # store what index that newly added edge is within the entire edges list 
-        
+            base_connect_edges.append(total_edges + i) # store what index that newly added edge is within the entire edges list
+        self.base["edge_indices"]["basket"] = base_connect_edges 
+            
+        # create the cylinder attached to the ring holding the cart up
+        top_center = self.vertices[self.top["vertex_indices"]["center_1"]] # get the vertex coordinates of the center of the cylinder top
+        bottom_center = self.vertices[self.base["vertex_indices"]["center_2"]] # get the vertex coordinates of the center of the basket bottom
+        self.create_horizontal_circle(top_center, size / 16, 12, self.pole, 1) # create top circle of the pole
+        self.create_horizontal_circle(bottom_center, size / 16, 12, self.pole, 2) # create bottom of the pole
+        pole_circle1_vertices = self.pole["vertex_indices"]["outer_circle_1"] # get list of numbers corresponding to the indices of the vertices of the top circle of the pole
+        pole_circle2_vertices = self.pole["vertex_indices"]["outer_circle_2"] # get list of numbers corresponding to the indices of the vertices of the bottom circle of the pole
+        pole_connect_edges = [] # hold edges connecting the top and bottom circles of the pole
+        total_edges = len(self.edges) # the total number of edges
+        for i in range(12): # go through every vertex of the pole circle
+            self.edges.append([pole_circle1_vertices[i], pole_circle2_vertices[i]]) # create an edge between the corresponding vertices on the two circles
+            pole_connect_edges.append(total_edges + i) # store what index that newly added edge is within the entire edges list
+        self.pole["edge_indices"]["pole"] = pole_connect_edges 
+
+
 class Wheel:
     def __init__(self, center, num_carts, size):
         self.center = center # center of wheel, user-specified
@@ -76,6 +105,7 @@ class Wheel:
         self.wheel1 = {"vertex_indices": {}, "edge_indices": {}}
         self.wheel2 = {"vertex_indices": {}, "edge_indices": {}}
         self.posts = {"vertex_indices": {}, "edge_indices": {}}
+        self.cart_size = 0.30 * self.size # size of each ring
         
         self.create_wheel((self.center[0], self.center[1] - (0.15 * self.size), self.center[2]), self.size, self.num_carts, self.wheel1) # 2.0 is the radius of a ring holding a cart
         self.create_wheel((self.center[0], self.center[1] + (0.15 * self.size), self.center[2]), self.size, self.num_carts, self.wheel2)
@@ -159,7 +189,7 @@ class Wheel:
         wheel1_center_vi = self.wheel1["vertex_indices"]["center"]
         wheel2_center_vi = self.wheel2["vertex_indices"]["center"]
         self.edges.append([wheel1_center_vi, wheel2_center_vi]) # create an edge between the centers of the two wheels
-        self.posts["edge_indices"]["center_bar"] = len(self.edges) - 1  
+        self.posts["edge_indices"]["center_bar"] = len(self.edges) - 1
 
 # test
 new_wheel = Wheel((1.0, 2.0, 1.0), 3, 8)
