@@ -7,9 +7,11 @@ from bpy.types import Operator, Panel, PropertyGroup
 import bmesh
 
 class Cart:
-    def __init__(self, center, size):
+    def __init__(self, center, width, height):
         self.center = center
-        self.size = 0.30 * 3.0 # will be the size of every ring on the ferris wheel
+        self.width = width # half the size of every ring on the ferris wheel (the radius of the circle extending along that ring)
+        self.height = 0.75 * height # 0.75 * difference in z values between two rings to give some space between carts
+        self.obj = None # hold the Blender object
         
         self.vertices = [] # vertices of the ferris wheel cart
         self.edges = [] # edges of the ferris wheel cart
@@ -18,7 +20,8 @@ class Cart:
         self.base = {"vertex_indices": {}, "edge_indices": {}}
         self.pole = {"vertex_indices": {}, "edge_indices": {}}
         
-        self.create_cart(self.center, self.size)
+        self.create_cart(self.center, self.width, self.height)
+        
         
     def create_horizontal_circle(self, center, radius, num_vertices, circle_dict, circle_num): # add vertices of circle with center "center" and radius "radius"
             theta = (2 * pi) / num_vertices # calculate angle of each slice of the circle
@@ -52,11 +55,20 @@ class Cart:
                     circle_edges.append(total_edges + i) # store what index that newly added edge is within the entire edges list
             circle_dict["edge_indices"]["outer_circle_" + str(circle_num)] = circle_edges
             
+    def create_cart_obj(self):
+        cart_mesh = bpy.data.meshes.new('cart')
+        cart_mesh.from_pydata(self.vertices, self.edges, self.faces)
+        cart_mesh.update()
+        # make cart object from cart mesh
+        cart_object = bpy.data.objects.new('cart_object', cart_mesh)
+        # make cart collection
+        self.obj = cart_object
+            
               
-    def create_cart(self, center, size): 
+    def create_cart(self, center, width, height):
         # create top cylinder
-        self.create_horizontal_circle((center[0], center[1], center[2] + 1.0), size, 6, self.top, 1) # create top hexagon of the top cylinder
-        self.create_horizontal_circle((center[0], center[1], center[2] + 0.90), size, 6, self.top, 2) # create top hexagon of the top cylinder
+        self.create_horizontal_circle((center[0], center[1], center[2]), width, 6, self.top, 1) # create top hexagon of the top cylinder
+        self.create_horizontal_circle((center[0], center[1], center[2] -(0.05 * height)), width, 6, self.top, 2) # create top hexagon of the top cylinder
         top_circle1_vertices = self.top["vertex_indices"]["outer_circle_1"] # get list of numbers corresponding to the indices of the vertices of the top hexagon of the top cylinder
         top_circle2_vertices = self.top["vertex_indices"]["outer_circle_2"] # get list of numbers corresponding to the indices of the vertices of the bottom hexagon of the top cylinder
         top_connect_edges = [] # hold edges connecting the hexagons
@@ -65,10 +77,10 @@ class Cart:
             self.edges.append([top_circle1_vertices[i], top_circle2_vertices[i]]) # create an edge between the corresponding vertices on the two hexagons
             top_connect_edges.append(total_edges + i) # store what index that newly added edge is within the entire edges list 
         self.top["edge_indices"]["top"] = top_connect_edges 
-        
+    
         # create base basket
-        self.create_horizontal_circle(center, size, 6, self.base, 1) # create top hexagon of the basket
-        self.create_horizontal_circle((center[0], center[1], center[2] - 1.0), size / 1.5, 6, self.base, 2) # create bottom hexagon of the basket
+        self.create_horizontal_circle((center[0], center[1], center[2] - (0.4 * height)), width, 6, self.base, 1) # create top hexagon of the basket
+        self.create_horizontal_circle((center[0], center[1], center[2] - height), width / 1.5, 6, self.base, 2) # create bottom hexagon of the basket
         base_circle1_vertices = self.base["vertex_indices"]["outer_circle_1"] # get list of numbers corresponding to the indices of the vertices of the top hexagon of the basket
         base_circle2_vertices = self.base["vertex_indices"]["outer_circle_2"] # get list of numbers corresponding to the indices of the vertices of the bottom hexagon of the basket
         base_connect_edges = [] # hold edges connecting the hexagons
@@ -81,8 +93,8 @@ class Cart:
         # create the cylinder attached to the ring holding the cart up
         top_center = self.vertices[self.top["vertex_indices"]["center_1"]] # get the vertex coordinates of the center of the cylinder top
         bottom_center = self.vertices[self.base["vertex_indices"]["center_2"]] # get the vertex coordinates of the center of the basket bottom
-        self.create_horizontal_circle(top_center, size / 16, 12, self.pole, 1) # create top circle of the pole
-        self.create_horizontal_circle(bottom_center, size / 16, 12, self.pole, 2) # create bottom of the pole
+        self.create_horizontal_circle(top_center, width / 16, 12, self.pole, 1) # create top circle of the pole
+        self.create_horizontal_circle(bottom_center, width / 16, 12, self.pole, 2) # create bottom of the pole
         pole_circle1_vertices = self.pole["vertex_indices"]["outer_circle_1"] # get list of numbers corresponding to the indices of the vertices of the top circle of the pole
         pole_circle2_vertices = self.pole["vertex_indices"]["outer_circle_2"] # get list of numbers corresponding to the indices of the vertices of the bottom circle of the pole
         pole_connect_edges = [] # hold edges connecting the top and bottom circles of the pole
@@ -91,6 +103,8 @@ class Cart:
             self.edges.append([pole_circle1_vertices[i], pole_circle2_vertices[i]]) # create an edge between the corresponding vertices on the two circles
             pole_connect_edges.append(total_edges + i) # store what index that newly added edge is within the entire edges list
         self.pole["edge_indices"]["pole"] = pole_connect_edges 
+        
+        self.create_cart_obj() # create Blender object
 
 
 class Wheel:
@@ -105,7 +119,8 @@ class Wheel:
         self.wheel1 = {"vertex_indices": {}, "edge_indices": {}}
         self.wheel2 = {"vertex_indices": {}, "edge_indices": {}}
         self.posts = {"vertex_indices": {}, "edge_indices": {}}
-        self.cart_size = 0.30 * self.size # size of each ring
+        self.cart_width = 0.30 * self.size * 0.5 # size of each ring (which is 0.30 * self.size) and then divide by 2
+        self.cart_height = (self.size / num_carts) # approximate the height each cart can take up
         
         self.create_wheel((self.center[0], self.center[1] - (0.15 * self.size), self.center[2]), self.size, self.num_carts, self.wheel1) # 2.0 is the radius of a ring holding a cart
         self.create_wheel((self.center[0], self.center[1] + (0.15 * self.size), self.center[2]), self.size, self.num_carts, self.wheel2)
@@ -113,6 +128,7 @@ class Wheel:
         self.create_posts(self.wheel1, 1)
         self.create_posts(self.wheel2, 2)
         self.create_internal_support()
+        self.create_carts()
     
     def create_wheel(self, center, radius, num_vertices, wheel_dict): # add vertices of circle with center "center" and radius "radius"
             theta = (2 * pi) / num_vertices # calculate angle of each slice of the circle
@@ -164,6 +180,7 @@ class Wheel:
         for i in range(self.num_carts):
             self.edges.append([wheel1_circle_vertices[i], wheel2_circle_vertices[i]]) # create an edge between the corresponding vertices on the two wheels
             wheel_rings.append(total_edges + i) # store what index that newly added edge is within the entire edges list
+        self.posts["edge_indices"]["rings"] = wheel_rings
             
     def create_posts(self, wheel, wheel_num):
         # wheel_num is either 1 or 2, depending on which wheel of this ferris wheel is specified to create posts for
@@ -190,7 +207,28 @@ class Wheel:
         wheel2_center_vi = self.wheel2["vertex_indices"]["center"]
         self.edges.append([wheel1_center_vi, wheel2_center_vi]) # create an edge between the centers of the two wheels
         self.posts["edge_indices"]["center_bar"] = len(self.edges) - 1
-
+        
+    def create_carts(self):
+        num_carts = self.num_carts # number of carts to create
+        cart_collection = bpy.data.collections.new('cart_collection')
+        bpy.context.scene.collection.children.link(cart_collection)
+        # add cart object to scene collection
+        ring_edge_indices = self.posts["edge_indices"]["rings"] # get the indices of the edges of the rings
+        print("ring_edge_indices" + str(ring_edge_indices))
+        for i in range(num_carts): 
+            # get center of ring
+            ring_vertices = self.edges[ring_edge_indices[i]] # the indices of the two vertices forming the ring
+            ring_v1 = self.vertices[ring_vertices[0]] # the first ring vertex
+            ring_v2 = self.vertices[ring_vertices[1]] # the second ring vertex
+            print("ring_v1" + str(ring_v1))
+            print("ring_v2" + str(ring_v2))
+            
+            # compute center of cart top
+            top_center = (ring_v1[0] + 0.5 * (ring_v2[0] - ring_v1[0]), ring_v1[1] + 0.5 * (ring_v2[1] - ring_v1[1]), ring_v1[2] + 0.5 * (ring_v2[2] - ring_v1[2]))
+            new_cart = Cart(top_center, self.cart_width, self.cart_height)
+            cart_collection.objects.link(new_cart.obj) # add the newly created cart object to the cart_collection
+        
+ 
 # test
 new_wheel = Wheel((1.0, 2.0, 1.0), 3, 8)
 
@@ -204,17 +242,3 @@ ferris_wheel_collection = bpy.data.collections.new('ferris_wheel_collection')
 bpy.context.scene.collection.children.link(ferris_wheel_collection)
 # add ferris wheel object to scene collection
 ferris_wheel_collection.objects.link(ferris_wheel_object)
-
-
-new_cart = Cart((5.0, 8.0, 3.0), 3)
-
-cart_mesh = bpy.data.meshes.new('cart')
-cart_mesh.from_pydata(new_cart.vertices, new_cart.edges, new_cart.faces)
-cart_mesh.update()
-# make cart object from cart mesh
-cart_object = bpy.data.objects.new('cart_object', cart_mesh)
-# make cart collection
-cart_collection = bpy.data.collections.new('cart_collection')
-bpy.context.scene.collection.children.link(cart_collection)
-# add cart object to scene collection
-cart_collection.objects.link(cart_object)
