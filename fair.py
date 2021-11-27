@@ -10,7 +10,7 @@ class Cart:
     def __init__(self, center, width, height):
         self.center = center
         self.width = width # half the size of every ring on the ferris wheel (the radius of the circle extending along that ring)
-        self.height = 0.75 * height # 0.75 * difference in z values between two rings to give some space between carts
+        self.height = 0.9 * height # leave some room between carts
         self.obj = None # hold the Blender object
         
         self.vertices = [] # vertices of the ferris wheel cart
@@ -77,7 +77,7 @@ class Cart:
             self.edges.append([top_circle1_vertices[i], top_circle2_vertices[i]]) # create an edge between the corresponding vertices on the two hexagons
             top_connect_edges.append(total_edges + i) # store what index that newly added edge is within the entire edges list 
         self.top["edge_indices"]["top"] = top_connect_edges 
-    
+        
         # create base basket
         self.create_horizontal_circle((center[0], center[1], center[2] - (0.4 * height)), width, 6, self.base, 1) # create top hexagon of the basket
         self.create_horizontal_circle((center[0], center[1], center[2] - height), width / 1.5, 6, self.base, 2) # create bottom hexagon of the basket
@@ -105,13 +105,13 @@ class Cart:
         self.pole["edge_indices"]["pole"] = pole_connect_edges 
         
         self.create_cart_obj() # create Blender object
-
-
+        
+    
 class Wheel:
     def __init__(self, center, num_carts, size):
         self.center = center # center of wheel, user-specified
-        self.num_carts = 15 # number of carts, user-specified
-        self.size = 3.0 # size of wheel, user-specified
+        self.num_carts = num_carts # number of carts, user-specified
+        self.size = size # size of wheel, user-specified
         
         self.vertices = [] # vertices of the ferris wheel
         self.edges = [] # edges of the ferris wheel
@@ -119,11 +119,11 @@ class Wheel:
         self.wheel1 = {"vertex_indices": {}, "edge_indices": {}}
         self.wheel2 = {"vertex_indices": {}, "edge_indices": {}}
         self.posts = {"vertex_indices": {}, "edge_indices": {}}
-        self.cart_width = 0.30 * self.size * 0.5 # size of each ring (which is 0.30 * self.size) and then divide by 2
-        self.cart_height = (self.size / num_carts) # approximate the height each cart can take up
+        self.cart_width = 0.20 * self.size * 0.5 # size of each ring (which is 0.30 * self.size) and then divide by 2
+        self.cart_height = (self.size / (num_carts / 4)) # approximate the height each cart can take up
         
-        self.create_wheel((self.center[0], self.center[1] - (0.15 * self.size), self.center[2]), self.size, self.num_carts, self.wheel1) # 2.0 is the radius of a ring holding a cart
-        self.create_wheel((self.center[0], self.center[1] + (0.15 * self.size), self.center[2]), self.size, self.num_carts, self.wheel2)
+        self.create_wheel((self.center[0], self.center[1] - (0.10 * self.size), self.center[2]), self.size, self.num_carts, self.wheel1) # 2.0 is the radius of a ring holding a cart
+        self.create_wheel((self.center[0], self.center[1] + (0.10 * self.size), self.center[2]), self.size, self.num_carts, self.wheel2)
         self.connect_wheels()
         self.create_posts(self.wheel1, 1)
         self.create_posts(self.wheel2, 2)
@@ -230,7 +230,7 @@ class Wheel:
         
  
 # test
-new_wheel = Wheel((1.0, 2.0, 1.0), 3, 8)
+new_wheel = Wheel((1.0, 2.0, 1.0), 20, 10)
 
 ferris_wheel_mesh = bpy.data.meshes.new('ferris_wheel')
 ferris_wheel_mesh.from_pydata(new_wheel.vertices, new_wheel.edges, new_wheel.faces)
