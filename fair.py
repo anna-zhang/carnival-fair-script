@@ -112,8 +112,8 @@ class Cart:
         self.pole["edge_indices"]["pole"] = pole_connect_edges 
         
         self.create_cart_obj() # create Blender object
-        
-    
+
+
 class Wheel:
     def __init__(self, center, num_carts, size):
         self.center = center # center of wheel, user-specified
@@ -155,7 +155,6 @@ class Wheel:
                 print("circle_vertex: " + str(vertex))
                 circle_vertices.append(num_vertices_total + i) # save index in vertices list of the vertex being added
             wheel_dict["vertex_indices"]["outer_circle"] = circle_vertices
-            
             
             # create edges between adjacent outer circle vertices
             circle_edges = [] # save indices of the edges creating the circle in the edges list
@@ -217,7 +216,7 @@ class Wheel:
         
         # create crossing bars 
         # determine number of crosses to make by getting half of self.size, rounding to the nearest integer
-        num_crosses = int(self.size / 2)
+        num_crosses = int(self.size / 3)
 
         # iterate through every pair of spokes and create crosses between them
         num_spoke_pairs = self.num_carts
@@ -227,7 +226,10 @@ class Wheel:
         self.wheel1["vertex_indices"]["crosses"] = {} # dictionary with keys as spoke_# and value as array of vertex indices for the cross points on that spoke
         self.wheel2["vertex_indices"]["crosses"] = {} # dictionary with keys as spoke_# and value as array of vertex indices for the cross points on that spoke
         
-        # add vertices on the spokes
+        self.wheel1["edge_indices"]["crosses"] = {} # dictionary with keys as spoke_# and value as array of edge indices that spoke is a part of
+        self.wheel2["edge_indices"]["crosses"] = {} # dictionary with keys as spoke_# and value as array of edge indices that spoke is a part of
+        
+        # add vertices on the spokes for crossing bars
         for i in range(num_spoke_pairs):
             wheel1_spoke_v1_index = (self.edges[wheel1_spokes[i]])[0] 
             wheel1_spoke_v1 = self.vertices[wheel1_spoke_v1_index] # the center of the wheel, one end of the spoke
@@ -244,7 +246,7 @@ class Wheel:
             self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(i)] = [wheel1_spoke_v1_index] # remember the end of the spoke near the center of the wheel
             self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(i)] = [wheel2_spoke_v1_index] # remember the end of the spoke near the center of the wheel
             
-            if num_crosses > 2:
+            if num_crosses > 1:
                 for j in range(1, num_crosses):
                     wheel1_cross_vertex = interpolate_edge_vertex(wheel1_spoke_v1, wheel1_spoke_v2, j / num_crosses)
                     wheel2_cross_vertex = interpolate_edge_vertex(wheel2_spoke_v1, wheel2_spoke_v2, j / num_crosses)
@@ -255,12 +257,37 @@ class Wheel:
                     
                     self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(i)].append(total_vertices) # remember the index of the vertex on the spoke
                     self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(i)].append(total_vertices + 1) # remember the index of the vertex on the spoke
-                    
-            # end it at the end of the spokes
-            self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(i)].append(wheel1_spoke_v2_index) # remember the end of the spoke near the cart
-            self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(i)].append(wheel2_spoke_v2_index) # remember the end of the spoke near the cart
             
-        
+            else:
+                # create a cross vertex 0.3 in
+                 wheel1_cross_vertex = interpolate_edge_vertex(wheel1_spoke_v1, wheel1_spoke_v2, 0.3)
+                 wheel2_cross_vertex = interpolate_edge_vertex(wheel2_spoke_v1, wheel2_spoke_v2, 0.3)
+                 # these vertices are the cross points on the spokes
+                 total_vertices = len(self.vertices)
+                 self.vertices.append(wheel1_cross_vertex)
+                 self.vertices.append(wheel2_cross_vertex)
+                 self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(i)].append(total_vertices) # remember the index of the vertex on the spoke
+                 self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(i)].append(total_vertices + 1) # remember the index of the vertex on the spoke
+                 
+            final_num_crosses = len(self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(i)]) - 1 # there are at least two vertices
+            
+            # create the crossing bar edges
+            self.wheel1["edge_indices"]["crosses"]["spoke_" + str(i)] = [] # remember the edges added
+            self.wheel2["edge_indices"]["crosses"]["spoke_" + str(i)] = [] # remember the edges added
+            for j in range(final_num_crosses):
+                # get the four vertices for the cross
+                wheel1_cross_v1 = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(i)][j]
+                wheel1_cross_v2 = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(i)][j + 1]
+                wheel2_cross_v1 = self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(i)][j]
+                wheel2_cross_v2 = self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(i)][j + 1]
+                total_edges = len(self.edges)
+                # create the X
+                self.edges.append([wheel1_cross_v1, wheel2_cross_v2])
+                self.edges.append([wheel2_cross_v1, wheel1_cross_v2])
+                self.edges.append([wheel1_cross_v2, wheel2_cross_v2]) # connect the outer cross vertices
+                self.wheel1["edge_indices"]["crosses"]["spoke_" + str(i)].extend([total_edges, total_edges + 1, total_edges + 2])
+                self.wheel2["edge_indices"]["crosses"]["spoke_" + str(i)].extend([total_edges, total_edges + 1, total_edges + 2])
+                
     def create_carts(self):
         num_carts = self.num_carts # number of carts to create
         cart_collection = bpy.data.collections.new('cart_collection')
@@ -283,7 +310,8 @@ class Wheel:
         
  
 # test
-new_wheel = Wheel((1.0, 2.0, 1.0), 15, 8)
+# new_wheel = Wheel((1.0, 2.0, 1.0), 15, 3) # smaller wheel
+new_wheel = Wheel((1.0, 2.0, 1.0), 15, 10) # larger wheel
 
 ferris_wheel_mesh = bpy.data.meshes.new('ferris_wheel')
 ferris_wheel_mesh.from_pydata(new_wheel.vertices, new_wheel.edges, new_wheel.faces)
