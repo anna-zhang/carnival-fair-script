@@ -288,6 +288,46 @@ class Wheel:
                 self.wheel1["edge_indices"]["crosses"]["spoke_" + str(i)].extend([total_edges, total_edges + 1, total_edges + 2])
                 self.wheel2["edge_indices"]["crosses"]["spoke_" + str(i)].extend([total_edges, total_edges + 1, total_edges + 2])
                 
+        # create circles connecting the cross vertices on each wheel for internal support
+        num_cross_vertices = len(self.wheel1["vertex_indices"]["crosses"]["spoke_0"]) # every spoke has the same number of cross vertices, so just use the first spoke as reference   
+        # connect corresponding cross vertices on the other spokes of that wheel with edges
+        # iterate through the number of cross vertices on a spoke (there are at least two, since the vertex at the end of the spoke toward circle center also counts as one)
+        self.wheel1["edge_indices"]["internal_circles"] = {}
+        self.wheel2["edge_indices"]["internal_circles"] = {}
+        for i in range(1, num_cross_vertices):
+            wheel1_circle_edges = [] # list of edge indices forming this circle on wheel1
+            wheel2_circle_edges = [] # list of edge indices forming this circle on wheel2
+            for j in range(num_spoke_pairs):
+                if j == (num_spoke_pairs - 1):
+                    # the last spoke, connect the cross vertex on the last spoke to the corresponding cross vertex on the first spoke
+                    wheel1_cross_spoke1_vertex = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(j)][i] # cross vertex on this spoke of wheel1
+                    wheel1_cross_spoke2_vertex = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(0)][i] # corresponding cross vertex on the first spoke of wheel1 to close the loop
+                    
+                    wheel2_cross_spoke1_vertex = self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(j)][i] # cross vertex on this spoke of wheel2
+                    wheel2_cross_spoke2_vertex = self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(0)][i] # corresponding cross vertex on the first spoke of wheel2 to close the loop
+                    total_edges = len(self.edges)
+                    self.edges.append([wheel1_cross_spoke1_vertex, wheel1_cross_spoke2_vertex])
+                    self.edges.append([wheel2_cross_spoke1_vertex, wheel2_cross_spoke2_vertex])
+                    wheel1_circle_edges.append(total_edges) # remember index of newly added edge
+                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge
+                else:
+                    # connect the cross vertex on this spoke with the corresponding cross vertex on the next spoke
+                    wheel1_cross_spoke1_vertex = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(j)][i] # cross vertex on this spoke of wheel1
+                    wheel1_cross_spoke2_vertex = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(j + 1)][i] # corresponding cross vertex on the next spoke of wheel1
+                    
+                    wheel2_cross_spoke1_vertex = self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(j)][i] # cross vertex on this spoke of wheel2
+                    wheel2_cross_spoke2_vertex = self.wheel2["vertex_indices"]["crosses"]["spoke_" + str(j + 1)][i] # corresponding cross vertex on the next spoke of wheel2
+                    total_edges = len(self.edges)
+                    self.edges.append([wheel1_cross_spoke1_vertex, wheel1_cross_spoke2_vertex])
+                    self.edges.append([wheel2_cross_spoke1_vertex, wheel2_cross_spoke2_vertex])
+                    wheel1_circle_edges.append(total_edges) # remember index of newly added edge
+                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge
+                
+                # save the list of edge indices 
+                self.wheel1["edge_indices"]["internal_circles"]["circle_" + str(i - 1)] = wheel1_circle_edges # i - 1 so that the key names start with circle_0
+                self.wheel2["edge_indices"]["internal_circles"]["circle_" + str(i - 1)] = wheel2_circle_edges # i - 1 so that the key names start with circle_0
+                          
+        
     def create_carts(self):
         num_carts = self.num_carts # number of carts to create
         cart_collection = bpy.data.collections.new('cart_collection')
