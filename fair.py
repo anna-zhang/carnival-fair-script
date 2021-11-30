@@ -330,6 +330,15 @@ class Wheel:
         
     def create_carts(self):
         num_carts = self.num_carts # number of carts to create
+    
+        # error checking for height of cart
+        wheel_center_vertex = self.vertices[self.wheel1["vertex_indices"]["center"]] # the vertex for the center of the first wheel
+        post_vertex = self.vertices[self.posts["vertex_indices"]["wheel1"][0]] # get vertex of post bottom on wheel1
+        post_vertical_height = abs(wheel_center_vertex[2] - post_vertex[2])
+        if (self.cart_height > (post_vertical_height - self.size)): # make sure the bottom cart doesn't go below the support structure posts when it's hanging down
+            self.cart_height = 0.80 * (post_vertical_height - self.size) # adjust height of cart so that it doesn't go below the support structure posts   
+        
+        # create collection to hold carts
         cart_collection = bpy.data.collections.new('cart_collection')
         bpy.context.scene.collection.children.link(cart_collection)
         # add cart object to scene collection
