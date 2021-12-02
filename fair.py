@@ -63,8 +63,17 @@ class Cart:
             circle_dict["edge_indices"]["outer_circle_" + str(circle_num)] = circle_edges
             
     def create_cart_obj(self):
-        cart_mesh = bpy.data.meshes.new('cart')
+        cart_mesh = bpy.data.meshes.new('cart') # create Mesh object
         cart_mesh.from_pydata(self.vertices, self.edges, self.faces)
+        cart_mesh.update()
+        bm = bmesh.new() # create BMesh object
+        bm.from_mesh(cart_mesh) # take Mesh object and turn to BMesh
+        bmesh.ops.contextual_create(bm, geom=bm.edges) # create faces from edges
+        print("bm.faces") # TEST
+        print([face for face in bm.faces]) # TEST: figure out what face to delete
+        faces_to_delete = [bm.faces[7], bm.faces[14]] # bm.faces[7] is the bottom face of the top hood, bm.faces[14] is the top of the basket
+        bmesh.ops.delete(bm, geom=faces_to_delete, context='FACES') # remove the unnecessary faces
+        bm.to_mesh(cart_mesh) # take BMesh object and turn to Mesh
         cart_mesh.update()
         # make cart object from cart mesh
         cart_object = bpy.data.objects.new('cart_object', cart_mesh)
@@ -309,7 +318,7 @@ class Wheel:
                     self.edges.append([wheel1_cross_spoke1_vertex, wheel1_cross_spoke2_vertex])
                     self.edges.append([wheel2_cross_spoke1_vertex, wheel2_cross_spoke2_vertex])
                     wheel1_circle_edges.append(total_edges) # remember index of newly added edge
-                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge
+                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge                 
                 else:
                     # connect the cross vertex on this spoke with the corresponding cross vertex on the next spoke
                     wheel1_cross_spoke1_vertex = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(j)][i] # cross vertex on this spoke of wheel1
@@ -332,7 +341,7 @@ class Wheel:
         num_carts = self.num_carts # number of carts to create
     
         # error checking for height of cart
-        wheel_center_vertex = self.vertices[self.wheel1["vertex_indices"]["center"]] # the vertex for the center of the first wheel
+        wheel_center_vertex = self.vertices[self.wheel1["vertex_indices"]["center"]] # the vertex  for the center of the first wheel
         post_vertex = self.vertices[self.posts["vertex_indices"]["wheel1"][0]] # get vertex of post bottom on wheel1
         post_vertical_height = abs(wheel_center_vertex[2] - post_vertex[2])
         if (self.cart_height > (post_vertical_height - self.size)): # make sure the bottom cart doesn't go below the support structure posts when it's hanging down
