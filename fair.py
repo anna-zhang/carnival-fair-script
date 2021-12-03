@@ -6,6 +6,9 @@ from bpy.props import BoolProperty, FloatProperty, IntProperty, PointerProperty
 from bpy.types import Operator, Panel, PropertyGroup
 import bmesh
 
+test_vertices = []
+test_edges = []
+
 # returns the coordinates of the vertex along the edge connecting vertex_1 and vertex_2, according to a weight value (0.5 weight value gets halfway point)
 def interpolate_edge_vertex(vertex_1, vertex_2, weight):
     vertex_x = vertex_1[0] + (vertex_2[0] - vertex_1[0]) * weight 
@@ -13,6 +16,35 @@ def interpolate_edge_vertex(vertex_1, vertex_2, weight):
     vertex_z = vertex_1[2] + (vertex_2[2] - vertex_1[2]) * weight 
     return (vertex_x, vertex_y, vertex_z)
 
+def create_circle(normal, center, radius, num_vertices, circle_num): # determine plane orthogonal to a given normal vector containing "center" point and create a circle of "radius" with vertices on that plane around the center point
+        theta = (2 * pi) / num_vertices # calculate angle of each slice of the circle
+        circle_center = np.asarray(center) # the center of the circle, given
+        plane = (normal[0], normal[1], normal[2], (normal[0] * center[0] + normal[1] * center[1] + normal[2] * center[2])) # stores (a, b, c, d) for plane ax + by + cz = d orthogonal to a given vector "normal"
+        point1 = (1.0, 3.0, 0.0) # define x and y of point1, arbitrary
+        point1_z = -1.0 * (plane[0] * point1[0] + plane[1] * point1[1] - plane[3])/ plane[2] # compute z so that the point lays on the plane
+        point1 = (point1[0], point1[1], point1_z) # point1 on the plane
+        
+        point2 = (2.0, 6.0, 0.0) # define x and y of point2, arbitrary
+        point2_z = -1.0 * (plane[0] * point2[0] + plane[1] * point2[1] - plane[3])/ plane[2] # compute z so that the point lays on the plane
+        point2 = (point2[0], point2[1], point2_z) # point2 on the plane
+        
+        vector_1 = np.asarray(point1) - np.asarray(center) # vector 1 defining plane containing circle
+        vector_2 = np.asarray(point2) - np.asarray(center) # vector 2 defining plane containing circle
+        v1v2_cross = np.cross(vector_1, vector_2) # get cross product of two vectors to get a vector normal to the plane with the circle
+        v1v2_cross_normalized = v1v2_cross / np.linalg.norm(v1v2_cross) # normalize the vector that's normal to the plane containing the circle
+        u = vector_1 / np.linalg.norm(vector_1) # get unit vector to serve as "x-axis" of the plane
+        v = np.cross(u, v1v2_cross_normalized) # get vector to serve as "y-axis" of the plane
+        v = v / np.linalg.norm(v) # normalize v to get the unit "y-axis" of the plane
+        print("dot product: " + str(np.dot(u, v))) # make sure dot product of u and v = 0 so the axes are perpendicular
+        num_vertices_total = len(test_vertices) # get current # of vertices
+        circle_vertices = [] # save indices of the vertices lying on the circle
+        for i in range(0, num_vertices):
+            vertex = tuple(circle_center + radius * cos(theta * i) * u + radius * sin(theta * i) * v) 
+            test_vertices.append(vertex)
+            print("circle_vertex: " + str(vertex))
+            circle_vertices.append(num_vertices_total + i) # save index in vertices list of the vertex being added
+        
+        
 class Cart:
     def __init__(self, center, width, height):
         self.center = center
@@ -318,7 +350,7 @@ class Wheel:
                     self.edges.append([wheel1_cross_spoke1_vertex, wheel1_cross_spoke2_vertex])
                     self.edges.append([wheel2_cross_spoke1_vertex, wheel2_cross_spoke2_vertex])
                     wheel1_circle_edges.append(total_edges) # remember index of newly added edge
-                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge                 
+                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge               
                 else:
                     # connect the cross vertex on this spoke with the corresponding cross vertex on the next spoke
                     wheel1_cross_spoke1_vertex = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(j)][i] # cross vertex on this spoke of wheel1
@@ -369,7 +401,7 @@ class Wheel:
  
 # test
 # new_wheel = Wheel((1.0, 2.0, 1.0), 15, 3) # smaller wheel
-new_wheel = Wheel((1.0, 2.0, 1.0), 15, 10) # larger wheel
+new_wheel = Wheel((1.0, 2.0, 1.0), 15, 8) # larger wheel
 
 ferris_wheel_mesh = bpy.data.meshes.new('ferris_wheel')
 ferris_wheel_mesh.from_pydata(new_wheel.vertices, new_wheel.edges, new_wheel.faces)
@@ -381,3 +413,34 @@ ferris_wheel_collection = bpy.data.collections.new('ferris_wheel_collection')
 bpy.context.scene.collection.children.link(ferris_wheel_collection)
 # add ferris wheel object to scene collection
 ferris_wheel_collection.objects.link(ferris_wheel_object)
+
+# test circle
+#v1 = new_wheel.vertices[new_wheel.edges[new_wheel.posts["edge_indices"]["wheel" + str(1)][0]][0]]
+#v2 = new_wheel.vertices[new_wheel.edges[new_wheel.posts["edge_indices"]["wheel" + str(1)][0]][1]]
+
+v1 = (10, 11, 15) # test vertex1
+v2 = (15, 14, 20) # test vertex2
+
+test_vertices.append(v1)
+test_vertices.append(v2)
+num_vertices = len(test_vertices)
+test_edges.append((0, 1)) # create edge between centers for testing purposes
+
+print("v1:")
+print(v1)
+print("v2:")
+print(v2)
+# create circles that serve as the endcaps of a cylinder defined by points v1 and v2
+create_circle(np.asarray(v1) - np.asarray(v2), v1, 2, 6, 1)
+create_circle(np.asarray(v1) - np.asarray(v2), v2, 2, 6, 1)
+
+circle_mesh = bpy.data.meshes.new('circle')
+circle_mesh.from_pydata(test_vertices, test_edges, [])
+circle_mesh.update()
+# make circle object from circle mesh
+circle_object = bpy.data.objects.new('circle_object', circle_mesh)
+# make circle collection
+circle_collection = bpy.data.collections.new('circle_collection')
+bpy.context.scene.collection.children.link(circle_collection)
+# add circle object to scene collection
+circle_collection.objects.link(circle_object)
