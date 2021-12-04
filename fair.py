@@ -82,8 +82,19 @@ def cylinders_to_obj(cylinders, collection):
     cylinder_object = bpy.data.objects.new('cylinder_object', cylinder_mesh)
     # add it to the cylinder collection
     collection.objects.link(cylinder_object)
-           
-
+    
+    
+def get_all_values(dictionary, int_values): # given a dictionary (with potentially multiple layers), get all integer values using recursion; int_values is initially an empty list
+    for key, value in dictionary.items():
+        if type(value) is dict:
+            get_all_values(value, int_values)
+        elif type(value) is list:
+            for integer in value:
+                int_values.append(integer)
+        elif isinstance(value, int):
+            int_values.append(value)
+    return int_values
+  
 
 # returns the coordinates of the vertex along the edge connecting vertex_1 and vertex_2, according to a weight value (0.5 weight value gets halfway point)
 def interpolate_edge_vertex(vertex_1, vertex_2, weight):
@@ -428,6 +439,7 @@ class Wheel:
         self.create_posts(self.wheel2, 2)
         self.create_internal_support()
         self.create_carts()
+        self.create_wheel_obj()
     
     def create_wheel(self, center, radius, num_vertices, wheel_dict): # add vertices of circle with center "center" and radius "radius"
             theta = (2 * pi) / num_vertices # calculate angle of each slice of the circle
@@ -648,22 +660,45 @@ class Wheel:
             top_center = (ring_v1[0] + 0.5 * (ring_v2[0] - ring_v1[0]), ring_v1[1] + 0.5 * (ring_v2[1] - ring_v1[1]), ring_v1[2] + 0.5 * (ring_v2[2] - ring_v1[2]))
             new_cart = Cart(top_center, self.cart_width, self.cart_height)
             cart_collection.objects.link(new_cart.obj) # add the newly created cart object to the cart_collection
+    
+    def create_wheel_obj(self):
+        # create wheel object from a list of vertices and edges
+        wheel_cylinders = []
+        post_cylinders = []
+        radius = 0.05 # TEST
+        
+        # every edge is a cylinder
+        wheel1_edge_indices = get_all_values(self.wheel1["edge_indices"], []) # get all edge indices of the edges that make up wheel1
+        wheel2_edge_indices = get_all_values(self.wheel2["edge_indices"], []) # get all edge indices of the edges that make up wheel2
+        wheel_edge_indices = list(set(wheel1_edge_indices + wheel2_edge_indices)) # all edge indices of the wheel
+        
+        # iterate through each edge in the wheel and turn it into a cylinder
+        for edge_index in wheel_edge_indices:
+            edge = self.edges[edge_index] # get the edge
+            v1 = self.vertices[edge[0]] # get vertex1 of the edge
+            v2 = self.vertices[edge[1]] # get vertex2 of the edge
+            new_cylinder = Cylinder(v1, v2, radius)
+            wheel_cylinders.append(new_cylinder)
+        
+        post_edge_indices = get_all_values(self.posts["edge_indices"], []) # get all edge indices of the supporting posts of the wheel
+        # iterate through each edge making up the posts and turn it into a cylinder
+        for edge_index in post_edge_indices:
+            edge = self.edges[edge_index] # get the edge
+            v1 = self.vertices[edge[0]] # get vertex1 of the edge
+            v2 = self.vertices[edge[1]] # get vertex2 of the edge
+            new_cylinder = Cylinder(v1, v2, radius)
+            post_cylinders.append(new_cylinder)
+
+        # create a single object from all of these cylinders
+        # make ferris wheel collection
+        ferris_wheel_collection = bpy.data.collections.new('ferris_wheel_collection')
+        bpy.context.scene.collection.children.link(ferris_wheel_collection)
+        cylinders_to_obj(wheel_cylinders, ferris_wheel_collection) # create the ferris wheel
+        cylinders_to_obj(post_cylinders, ferris_wheel_collection) # create the ferris wheel posts
         
  
 # test
 # new_wheel = Wheel((1.0, 2.0, 1.0), 15, 3) # smaller wheel
 new_wheel = Wheel((1.0, 2.0, 1.0), 15, 8) # larger wheel
-
-ferris_wheel_mesh = bpy.data.meshes.new('ferris_wheel')
-ferris_wheel_mesh.from_pydata(new_wheel.vertices, new_wheel.edges, new_wheel.faces)
-ferris_wheel_mesh.update()
-# make ferris wheel object from ferris wheel mesh
-ferris_wheel_object = bpy.data.objects.new('ferris_wheel_object', ferris_wheel_mesh)
-# make ferris wheel collection
-ferris_wheel_collection = bpy.data.collections.new('ferris_wheel_collection')
-bpy.context.scene.collection.children.link(ferris_wheel_collection)
-# add ferris wheel object to scene collection
-ferris_wheel_collection.objects.link(ferris_wheel_object)
-
 
 flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8) # flat top booth
