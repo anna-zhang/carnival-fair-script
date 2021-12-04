@@ -9,6 +9,82 @@ import bmesh
 test_vertices = []
 test_edges = []
 
+class Circle:
+    def __init__(self, center, radius, vertices, edges):
+        self.center = center # the location of the center of the vertex
+        self.radius = radius # the radius of the circle
+        self.vertices = vertices # vertices forming the circle
+        self.edges = edges # edges connecting vertices on the circle
+
+class Cylinder:
+    def __init__(self, v1, v2, radius):
+        self.endpoint1 = v1
+        self.endpoint2 = v2
+        self.radius = radius # the radius of the cylinder
+        self.vertices = [] # vertices of the cylinder
+        self.edges = [] # edges of the cylinder
+        self.vertex_indices = {}
+        self.edge_indices = {}
+        
+        self.create_cylinder(self.endpoint1, self.endpoint2, self.radius) # test create cylinder
+        
+    
+    def create_cylinder(self, v1, v2, radius):
+        num_cuts = 20 # the two circles must have the same number of vertices
+        num_vertices = len(self.vertices) # current number of vertices in cylinder object
+        num_edges = len(self.edges) # current number of edges in cylinder object
+        # create circle endcaps
+        circle_1 = create_circle(np.asarray(v1) - np.asarray(v2), v1, radius, num_cuts, 1) # create circle1
+        circle_2 = create_circle(np.asarray(v1) - np.asarray(v2), v2, radius, num_cuts, 2)  # create circle2
+        self.vertices = self.vertices + circle_1.vertices + circle_2.vertices
+        circle_1.edges = [(edge[0] + num_vertices, edge[1] + num_vertices) for edge in circle_1.edges] # update edges with vertex indices in the cylinder vertices array
+        circle_2.edges = [(edge[0] + num_vertices + len(circle_1.vertices), edge[1] + num_vertices + len(circle_1.vertices)) for edge in circle_1.edges] # update edges with vertex indices in the cylinder vertices array
+        self.edges = self.edges + circle_1.edges + circle_2.edges
+        
+        # remember vertex indices of the circle endcaps
+        self.vertex_indices["circle_1"] = [i + num_vertices for i in range(len(circle_1.vertices))] # remember the vertex indices of the vertices making up circle1
+        self.vertex_indices["circle_2"] = [i + num_vertices + len(circle_1.vertices) for i in range(len(circle_2.vertices))] # remember the vertex indices of the vertices making up circle2
+        
+        # remember edge indices of the circle endcaps
+        self.edge_indices["circle_1"] = [i + num_edges for i in range(len(circle_1.edges))] # remember the edge indices of the edges making up circle1
+        self.edge_indices["circle_2"] = [i + num_edges + len(circle_1.edges) for i in range(len(circle_2.edges))] # remember the edge indices of the edges making up circle2
+        
+        # connect circles
+        num_edges = len(self.edges) # update current number of edges
+        for i in range(num_cuts):
+            self.edges.append((self.vertex_indices["circle_1"][i], self.vertex_indices["circle_2"][i]))
+        self.edge_indices["connect_circles"] = [i + num_edges for i in range(num_cuts)] # remember the edge indices of the edges connecting the two circles
+        
+
+# takes a list of cylinders and creates an object to add to "collection"
+def cylinders_to_obj(cylinders, collection):
+    vertices = [] # list of all vertices in the object
+    edges = [] # list of all edges in the object
+    for i in range(len(cylinders)):
+        cylinder = cylinders[i]
+        num_vertices = len(vertices) # current number of vertices
+        transformed_edges = [(edge[0] + num_vertices, edge[1] + num_vertices) for edge in cylinder.edges] # edges with new vertex indices corresponding to index in final object vertices array
+        for vertex in cylinder.vertices:
+            vertices.append(vertex)
+        for edge in transformed_edges:
+            edges.append(edge)
+    
+    # create one object out of all of the cylinders
+    cylinder_mesh = bpy.data.meshes.new('cylinders') # create Mesh object
+    cylinder_mesh.from_pydata(vertices, edges, [])
+    cylinder_mesh.update()
+    bm = bmesh.new() # create BMesh object
+    bm.from_mesh(cylinder_mesh) # take Mesh object and turn to BMesh
+    bmesh.ops.contextual_create(bm, geom=bm.edges) # create faces from edges
+    bm.to_mesh(cylinder_mesh) # take BMesh object and turn to Mesh
+    cylinder_mesh.update()
+    # make cylinder object from cylinder mesh
+    cylinder_object = bpy.data.objects.new('cylinder_object', cylinder_mesh)
+    # add it to the cylinder collection
+    collection.objects.link(cylinder_object)
+           
+
+
 # returns the coordinates of the vertex along the edge connecting vertex_1 and vertex_2, according to a weight value (0.5 weight value gets halfway point)
 def interpolate_edge_vertex(vertex_1, vertex_2, weight):
     vertex_x = vertex_1[0] + (vertex_2[0] - vertex_1[0]) * weight 
@@ -16,7 +92,7 @@ def interpolate_edge_vertex(vertex_1, vertex_2, weight):
     vertex_z = vertex_1[2] + (vertex_2[2] - vertex_1[2]) * weight 
     return (vertex_x, vertex_y, vertex_z)
 
-def create_circle(normal, center, radius, num_vertices, circle_num): # determine plane orthogonal to a given normal vector containing "center" point and create a circle of "radius" with vertices on that plane around the center point
+def create_circle(normal, center, radius, num_vertices, circle_num): # determine plane orthogonal to a given normal vector containing "center" point and create a circle of "radius" with vertices on that plane around the center point; returns a list of vertices defining the circle
         theta = (2 * pi) / num_vertices # calculate angle of each slice of the circle
         circle_center = np.asarray(center) # the center of the circle, given
         plane = (normal[0], normal[1], normal[2], (normal[0] * center[0] + normal[1] * center[1] + normal[2] * center[2])) # stores (a, b, c, d) for plane ax + by + cz = d orthogonal to a given vector "normal"
@@ -36,36 +112,54 @@ def create_circle(normal, center, radius, num_vertices, circle_num): # determine
         v = np.cross(u, v1v2_cross_normalized) # get vector to serve as "y-axis" of the plane
         v = v / np.linalg.norm(v) # normalize v to get the unit "y-axis" of the plane
         print("dot product: " + str(np.dot(u, v))) # make sure dot product of u and v = 0 so the axes are perpendicular
-        num_vertices_total = len(test_vertices) # get current # of vertices
-        circle_vertices = [] # save indices of the vertices lying on the circle
+        
+        # create vertices forming the circle
+        circle_vertices = [] # save the vertices lying on the circle
         for i in range(0, num_vertices):
             vertex = tuple(circle_center + radius * cos(theta * i) * u + radius * sin(theta * i) * v) 
-            test_vertices.append(vertex)
+            circle_vertices.append(vertex)
             print("circle_vertex: " + str(vertex))
-            circle_vertices.append(num_vertices_total + i) # save index in vertices list of the vertex being added
+            
+        # create edges between adjacent circle vertices
+        circle_edges = [] # save the edges creating the circle
+        for i in range(0, num_vertices):
+            if i < (num_vertices - 1): # all vertices besides the last one
+                circle_edges.append((i, i + 1)) # create an edge between this vertex and the next one
+            else:
+                circle_edges.append((i, 0)) # create an edge between the last vertex and the first one to close the circle
+        
+        return Circle(center, radius, circle_vertices, circle_edges)
+            
 
 
 class Booth: 
     def __init__(self, base_shape, top_style, top_border, purpose, width, length):
         self.base_shape = base_shape # square, rectangle, hexagon
-        self.top_style = top_style # layered, flat, pointy
+        self.top_style = top_style # flat, pointy
         self.top_border = top_border # flat, mini triangle flags, mini half hexagon flags
         self.purpose = purpose # food, games
         self.width = width # helps define the size of the booth (where the structural poles supporting it go)
         self.length = length # helps define the size of the booth (where the structural poles supporting it go)
+        self.height = 3 # total height of the booth
+        self.center = (20.0, 0.0, 0.0) # test
         
         self.vertices = []
         self.edges = []
         self.faces = []
         
-        self.create_top(self.base_shape, self.top_style, self.top_border, self.width, self.length, (20.0, 0.0, 0.0)) # test
+        self.top = {"vertex_indices": {}, "edge_indices": {}}
+        self.bottom = {"vertex_indices": {}, "edge_indices": {}}
+        self.poles = {"vertex_indices": {}, "edge_indices": {}}
+        
+        self.create_top(self.base_shape, self.top_style, self.top_border, self.width, self.length, self.height, self.center) # test
+        self.create_poles(self.base_shape, self.width, self.length, self.height) # test
         
     
-    def create_top(self, shape, style, border, width, length, center):
-        height = 3
+    def create_top(self, shape, style, border, width, length, height, center):
         top_vertices = []
         top_edges = []
-        num_vertices = len(self.vertices)
+        num_vertices = len(self.vertices) # current number of vertices in the object
+        num_edges = len(self.edges) # current number of edges in the object
         if style == "pointy":
             # pointy booth top
             top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
@@ -80,48 +174,110 @@ class Booth:
             # top_pointy_vertex_index = num_vertices + 4
             top_vertices = [top_pointy_vertex, top_v1, top_v2, top_v3, top_v4]
             top_edges = [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (2, 3), (3, 4), (4, 1)]
-        elif style == "flat":
-            # flat booth top
-            if shape == "rectangle":
-                # the very top rectangular prism of the booth
-                top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-                top_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-                top_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
-                top_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
-                # the bottom of the top rectangular prism of the booth
-                top_v5 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.45 * height)
-                top_v6 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.45 * height)
-                top_v7 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.45 * height)
-                top_v8 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.45 * height)
-                
-                top_vertices = [top_v1, top_v2, top_v3, top_v4, top_v5, top_v6, top_v7, top_v8]
-                top_edges = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 0), (0, 4), (1, 5), (2, 6), (3, 7)] # first four form the top of the rectangular prism of the booth; second four form the bottom of the rectular prism of the booth; last four connect the top and bottom of the rectangular prism
-            elif shape == "hexagon":
-                 # the very top hexagonal prism of the booth
-                top_v1 = (center[0] + 0.5 * width, center[1], center[2] + 0.5 * height)
-                top_v2 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-                top_v3 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-                top_v4 = (center[0] - 0.5 * width, center[1], center[2] + 0.5 * height)
-                top_v5 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
-                top_v6 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
-                # the bottom of the top hexagonal prism of the booth
-                top_v7 = (center[0] + 0.5 * width, center[1], center[2] + 0.5 * height)
-                top_v8 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-                top_v9 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-                top_v10 = (center[0] - 0.5 * width, center[1], center[2] + 0.5 * height)
-                top_v11 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
-                top_v12 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
-                
-                top_vertices = [top_v1, top_v2, top_v3, top_v4, top_v5, top_v6, top_v7, top_v8, top_v9, top_v10, top_v11, top_v12]
-                top_edges = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0), (6, 7), (7, 8), (8, 9), (9, 10), (10, 11), (11, 6), (0, 6), (1, 7), (2, 8), (3, 9), (4, 10), (5, 11)] # first six form the top of the hexagonal prism of the booth; second six form the bottom of the hexagonal prism of the booth; last six connect the top and bottom of the hexagonal prism
+            
+        # flat booth top
+        elif shape == "rectangle":
+            # the very top rectangular prism of the booth
+            top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            top_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            top_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            top_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            top_rect_vertices = [top_v1, top_v2, top_v3, top_v4]
+            
+            # the bottom of the top rectangular prism of the booth
+            top_v5 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.45 * height)
+            top_v6 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.45 * height)
+            top_v7 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.45 * height)
+            top_v8 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.45 * height)
+            bottom_rect_vertices = [top_v5, top_v6, top_v7, top_v8]
+            
+            top_vertices = top_rect_vertices + bottom_rect_vertices # all vertices forming the top of the booth
+            self.top["vertex_indices"]["top_rect"] = [i + num_vertices for i in range(len(top_rect_vertices))] # remember the vertex indices of the vertices making up the top rectangle
+            self.top["vertex_indices"]["bottom_rect"] = [i + num_vertices + len(top_rect_vertices) for i in range(len(bottom_rect_vertices))] # remember the vertex indices of the vertices making up the bottom rectangle
+            
+            top_rect_edges = [(0, 1), (1, 2), (2, 3), (3, 0)] # form the top of the top rectangular prism of the booth
+            bottom_rect_edges = [(4, 5), (5, 6), (6, 7), (7, 0)] # form the bottom of the top rectangular prism of the booth
+            connect_rect_edges = [(0, 4), (1, 5), (2, 6), (3, 7)] # connect the top and bottom of the top rectangular prism
+            
+            top_edges = top_rect_edges + bottom_rect_edges + connect_rect_edges
+            
+            
+        elif shape == "hexagon":
+             # the very top hexagonal prism of the booth
+            top_v1 = (center[0] + 0.5 * width, center[1], center[2] + 0.5 * height)
+            top_v2 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            top_v3 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            top_v4 = (center[0] - 0.5 * width, center[1], center[2] + 0.5 * height)
+            top_v5 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            top_v6 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            top_hexagon_vertices = [top_v1, top_v2, top_v3, top_v4, top_v5, top_v6]
+            # the bottom of the top hexagonal prism of the booth
+            top_v7 = (center[0] + 0.5 * width, center[1], center[2] + 0.5 * height)
+            top_v8 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            top_v9 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            top_v10 = (center[0] - 0.5 * width, center[1], center[2] + 0.5 * height)
+            top_v11 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            top_v12 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            bottom_hexagon_vertices = [top_v7, top_v8, top_v9, top_v10, top_v11, top_v12]
+            top_vertices = top_hexagon_vertices + bottom_hexagon_vertices
+            self.top["vertex_indices"]["top_hexagon"] = [i + num_vertices for i in range(len(top_hexagon_vertices))] # remember the vertex indices of the vertices making up the top hexagon
+            self.top["vertex_indices"]["bottom_hexagon"] = [i + num_vertices + len(top_hexagon_vertices) for i in range(len(bottom_hexagon_vertices))] # remember the vertex indices of the vertices making up the bottom hexagon
+            
+            top_hexagon_edges = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0)] # form the top of the hexagonal prism of the booth
+            bottom_hexagon_edges = [(6, 7), (7, 8), (8, 9), (9, 10), (10, 11), (11, 6)] # form the bottom of the hexagonal prism of the booth
+            connect_hexagon_edges = [(0, 6), (1, 7), (2, 8), (3, 9), (4, 10), (5, 11)] # connect the top and bottom of the hexagonal prism
+            top_edges = top_hexagon_edges + bottom_hexagon_edges + connect_hexagon_edges
+            self.top["edge_indices"]["top_hexagon"] = [i + num_edges for i in range(len(top_hexagon_edges))] # remember the edge indices of the edges making up the top hexagon
+            self.top["edge_indices"]["bottom_hexagon"] = [i + num_edges + len(top_hexagon_edges) for i in range(len(bottom_hexagon_edges))] # remember the edge indices of the edges making up the bottom hexagon
+            self.top["edge_indices"]["connect_hexagons"] = [i + num_edges + len(top_hexagon_edges) + len(bottom_hexagon_edges) for i in range(len(connect_hexagon_edges))] # remember the edge indices of the edges connecting the top and bottom hexagons
 
-        
         top_edges = [(edge[0] + num_vertices, edge[1] + num_vertices) for edge in top_edges]
-        
         
         self.vertices = self.vertices + top_vertices
         self.edges = self.edges + top_edges
-        
+    
+    
+    def create_poles(self, shape, width, length, height):
+        if shape == "rectangle":
+            # get the vertices and edges forming the surface of the top of the booth that the pole connects to
+            top_vertices = self.top["vertex_indices"]["bottom_rect"]
+            
+            # radius of the pole is 1/12 the length of the shortest side of the rectangle
+            radius = 0
+            if self.length > self.width:
+                radius = 1/12 * self.width
+            else:
+                radius = 1/12 * self.length
+            
+            # create cylinder poles near each of the vertices in top_vertices
+            poles = []
+            for i in range(len(top_vertices)):
+                top_vertex = self.vertices[top_vertices[i]]
+                if top_vertex[0] < self.center[0]:
+                    # vertex has a smaller x than the center of the booth
+                    x_displacement = radius
+                else:
+                    x_displacement = -1.0 * radius
+                
+                if top_vertex[1] < self.center[1]:
+                    # vertex has a smaller y than the center of the booth
+                    y_displacement = radius
+                else:
+                    y_displacement = -1.0 * radius
+                
+                
+                top_vertex = (top_vertex[0] + x_displacement, top_vertex[1] + y_displacement, top_vertex[2])
+                bottom_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - height)
+                new_pole = Cylinder(top_vertex, bottom_vertex, radius) # create the cylinder pole
+                poles.append(new_pole)
+            
+            # make cylinder collection
+            cylinder_collection = bpy.data.collections.new('cylinder_collection')
+            bpy.context.scene.collection.children.link(cylinder_collection)
+            cylinders_to_obj(poles, cylinder_collection) # create object out of list of cylinder poles
+            
+
+        # TEST CREATE BOOTH    
         booth_top_mesh = bpy.data.meshes.new('booth') # create Mesh object
         booth_top_mesh.from_pydata(self.vertices, self.edges, [])
         booth_top_mesh.update()
@@ -291,7 +447,7 @@ class Wheel:
                 print("circle_vertex: " + str(vertex))
                 circle_vertices.append(num_vertices_total + i) # save index in vertices list of the vertex being added
             wheel_dict["vertex_indices"]["outer_circle"] = circle_vertices
-                   
+            
             # create edges between adjacent outer circle vertices
             circle_edges = [] # save indices of the edges creating the circle in the edges list
             total_edges = len(self.edges) # the total number of edges
@@ -445,7 +601,7 @@ class Wheel:
                     self.edges.append([wheel1_cross_spoke1_vertex, wheel1_cross_spoke2_vertex])
                     self.edges.append([wheel2_cross_spoke1_vertex, wheel2_cross_spoke2_vertex])
                     wheel1_circle_edges.append(total_edges) # remember index of newly added edge
-                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge
+                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge   
                 else:
                     # connect the cross vertex on this spoke with the corresponding cross vertex on the next spoke
                     wheel1_cross_spoke1_vertex = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(j)][i] # cross vertex on this spoke of wheel1
@@ -510,39 +666,4 @@ bpy.context.scene.collection.children.link(ferris_wheel_collection)
 ferris_wheel_collection.objects.link(ferris_wheel_object)
 
 
-pointy_booth = Booth("rectangle", "pointy", "flat", "food", 3, 2) # pointy top booth
-
 flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8) # flat top booth
-
-hex_booth = Booth("hexagon", "flat", "flat", "food", 4, 8) # flat top booth
-
-# test circle
-#v1 = new_wheel.vertices[new_wheel.edges[new_wheel.posts["edge_indices"]["wheel" + str(1)][0]][0]]
-#v2 = new_wheel.vertices[new_wheel.edges[new_wheel.posts["edge_indices"]["wheel" + str(1)][0]][1]]
-
-v1 = (10, 11, 15) # test vertex1
-v2 = (15, 14, 20) # test vertex2
-
-test_vertices.append(v1)
-test_vertices.append(v2)
-num_vertices = len(test_vertices)
-test_edges.append((0, 1)) # create edge between centers for testing purposes
-
-print("v1:")
-print(v1)
-print("v2:")
-print(v2)
-# create circles that serve as the endcaps of a cylinder defined by points v1 and v2
-create_circle(np.asarray(v1) - np.asarray(v2), v1, 2, 6, 1)
-create_circle(np.asarray(v1) - np.asarray(v2), v2, 2, 6, 1)
-
-circle_mesh = bpy.data.meshes.new('circle')
-circle_mesh.from_pydata(test_vertices, test_edges, [])
-circle_mesh.update()
-# make circle object from circle mesh
-circle_object = bpy.data.objects.new('circle_object', circle_mesh)
-# make circle collection
-circle_collection = bpy.data.collections.new('circle_collection')
-bpy.context.scene.collection.children.link(circle_collection)
-# add circle object to scene collection
-circle_collection.objects.link(circle_object)
