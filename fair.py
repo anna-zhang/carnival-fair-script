@@ -43,7 +43,7 @@ def create_circle(normal, center, radius, num_vertices, circle_num): # determine
             test_vertices.append(vertex)
             print("circle_vertex: " + str(vertex))
             circle_vertices.append(num_vertices_total + i) # save index in vertices list of the vertex being added
-        
+
 
 class Booth: 
     def __init__(self, base_shape, top_style, top_border, purpose, width, length):
@@ -54,34 +54,76 @@ class Booth:
         self.width = width # helps define the size of the booth (where the structural poles supporting it go)
         self.length = length # helps define the size of the booth (where the structural poles supporting it go)
         
-        self.create_booth(self.base_shape, self.top_style, self.top_border, self.width, self.length, (20.0, 0.0, 0.0)) # test
+        self.vertices = []
+        self.edges = []
+        self.faces = []
+        
+        self.create_top(self.base_shape, self.top_style, self.top_border, self.width, self.length, (20.0, 0.0, 0.0)) # test
+        
     
-    def create_booth(self, shape, style, border, width, length, center):
+    def create_top(self, shape, style, border, width, length, center):
         height = 3
-        vertices = []
-        edges = []
+        top_vertices = []
+        top_edges = []
+        num_vertices = len(self.vertices)
+        if style == "pointy":
+            # pointy booth top
+            top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            # top_v1_index = num_vertices
+            top_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            # top_v2_index = num_vertices + 1
+            top_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            # top_v3_index = num_vertices + 2
+            top_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            # top_v4_index = num_vertices + 3
+            top_pointy_vertex = (center[0], center[1], center[2] + 0.75 * height)
+            # top_pointy_vertex_index = num_vertices + 4
+            top_vertices = [top_pointy_vertex, top_v1, top_v2, top_v3, top_v4]
+            top_edges = [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (2, 3), (3, 4), (4, 1)]
+        elif style == "flat":
+            # flat booth top
+            if shape == "rectangle":
+                # the very top rectangular prism of the booth
+                top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+                top_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+                top_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+                top_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+                # the bottom of the top rectangular prism of the booth
+                top_v5 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.45 * height)
+                top_v6 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.45 * height)
+                top_v7 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.45 * height)
+                top_v8 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.45 * height)
+                
+                top_vertices = [top_v1, top_v2, top_v3, top_v4, top_v5, top_v6, top_v7, top_v8]
+                top_edges = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 0), (0, 4), (1, 5), (2, 6), (3, 7)] # first four form the top of the rectangular prism of the booth; second four form the bottom of the rectular prism of the booth; last four connect the top and bottom of the rectangular prism
+            elif shape == "hexagon":
+                 # the very top hexagonal prism of the booth
+                top_v1 = (center[0] + 0.5 * width, center[1], center[2] + 0.5 * height)
+                top_v2 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+                top_v3 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+                top_v4 = (center[0] - 0.5 * width, center[1], center[2] + 0.5 * height)
+                top_v5 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+                top_v6 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+                # the bottom of the top hexagonal prism of the booth
+                top_v7 = (center[0] + 0.5 * width, center[1], center[2] + 0.5 * height)
+                top_v8 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+                top_v9 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+                top_v10 = (center[0] - 0.5 * width, center[1], center[2] + 0.5 * height)
+                top_v11 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+                top_v12 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+                
+                top_vertices = [top_v1, top_v2, top_v3, top_v4, top_v5, top_v6, top_v7, top_v8, top_v9, top_v10, top_v11, top_v12]
+                top_edges = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0), (6, 7), (7, 8), (8, 9), (9, 10), (10, 11), (11, 6), (0, 6), (1, 7), (2, 8), (3, 9), (4, 10), (5, 11)] # first six form the top of the hexagonal prism of the booth; second six form the bottom of the hexagonal prism of the booth; last six connect the top and bottom of the hexagonal prism
+
         
-        # booth top (pointy)
-        top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-        top_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-        top_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
-        top_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
-        top_pointy_vertex = (center[0], center[1], center[2] + 0.75 * height)
-        top_vertices = [top_pointy_vertex, top_v1, top_v2, top_v3, top_v4]
-        top_edges = [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (2, 3), (3, 4), (4, 1)]
+        top_edges = [(edge[0] + num_vertices, edge[1] + num_vertices) for edge in top_edges]
         
-        # booth bottom (rectangle)
-        bottom_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] - 0.5 * height)
-        bottom_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] - 0.5 * height)
-        bottom_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] - 0.5 * height)
-        bottom_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] - 0.5 * height)
-        bottom_vertices = [bottom_v1, bottom_v2, bottom_v3, bottom_v4]
-        bottom_edges = [(5, 6), (6, 7), (7, 8), (8, 5)]
         
-        vertices = top_vertices + bottom_vertices
-        edges = top_edges + bottom_edges
+        self.vertices = self.vertices + top_vertices
+        self.edges = self.edges + top_edges
+        
         booth_top_mesh = bpy.data.meshes.new('booth') # create Mesh object
-        booth_top_mesh.from_pydata(vertices, edges, [])
+        booth_top_mesh.from_pydata(self.vertices, self.edges, [])
         booth_top_mesh.update()
         bm = bmesh.new() # create BMesh object
         bm.from_mesh(booth_top_mesh) # take Mesh object and turn to BMesh
@@ -249,7 +291,7 @@ class Wheel:
                 print("circle_vertex: " + str(vertex))
                 circle_vertices.append(num_vertices_total + i) # save index in vertices list of the vertex being added
             wheel_dict["vertex_indices"]["outer_circle"] = circle_vertices
-            
+                   
             # create edges between adjacent outer circle vertices
             circle_edges = [] # save indices of the edges creating the circle in the edges list
             total_edges = len(self.edges) # the total number of edges
@@ -403,7 +445,7 @@ class Wheel:
                     self.edges.append([wheel1_cross_spoke1_vertex, wheel1_cross_spoke2_vertex])
                     self.edges.append([wheel2_cross_spoke1_vertex, wheel2_cross_spoke2_vertex])
                     wheel1_circle_edges.append(total_edges) # remember index of newly added edge
-                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge             
+                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge
                 else:
                     # connect the cross vertex on this spoke with the corresponding cross vertex on the next spoke
                     wheel1_cross_spoke1_vertex = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(j)][i] # cross vertex on this spoke of wheel1
@@ -468,7 +510,11 @@ bpy.context.scene.collection.children.link(ferris_wheel_collection)
 ferris_wheel_collection.objects.link(ferris_wheel_object)
 
 
-new_booth = Booth("rectangle", "pointy", "flat", "food", 3, 2) # booth
+pointy_booth = Booth("rectangle", "pointy", "flat", "food", 3, 2) # pointy top booth
+
+flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8) # flat top booth
+
+hex_booth = Booth("hexagon", "flat", "flat", "food", 4, 8) # flat top booth
 
 # test circle
 #v1 = new_wheel.vertices[new_wheel.edges[new_wheel.posts["edge_indices"]["wheel" + str(1)][0]][0]]
