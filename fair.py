@@ -44,7 +44,60 @@ def create_circle(normal, center, radius, num_vertices, circle_num): # determine
             print("circle_vertex: " + str(vertex))
             circle_vertices.append(num_vertices_total + i) # save index in vertices list of the vertex being added
         
+
+class Booth: 
+    def __init__(self, base_shape, top_style, top_border, purpose, width, length):
+        self.base_shape = base_shape # square, rectangle, hexagon
+        self.top_style = top_style # layered, flat, pointy
+        self.top_border = top_border # flat, mini triangle flags, mini half hexagon flags
+        self.purpose = purpose # food, games
+        self.width = width # helps define the size of the booth (where the structural poles supporting it go)
+        self.length = length # helps define the size of the booth (where the structural poles supporting it go)
         
+        self.create_booth(self.base_shape, self.top_style, self.top_border, self.width, self.length, (20.0, 0.0, 0.0)) # test
+    
+    def create_booth(self, shape, style, border, width, length, center):
+        height = 3
+        vertices = []
+        edges = []
+        
+        # booth top (pointy)
+        top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+        top_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+        top_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+        top_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+        top_pointy_vertex = (center[0], center[1], center[2] + 0.75 * height)
+        top_vertices = [top_pointy_vertex, top_v1, top_v2, top_v3, top_v4]
+        top_edges = [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (2, 3), (3, 4), (4, 1)]
+        
+        # booth bottom (rectangle)
+        bottom_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] - 0.5 * height)
+        bottom_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] - 0.5 * height)
+        bottom_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] - 0.5 * height)
+        bottom_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] - 0.5 * height)
+        bottom_vertices = [bottom_v1, bottom_v2, bottom_v3, bottom_v4]
+        bottom_edges = [(5, 6), (6, 7), (7, 8), (8, 5)]
+        
+        vertices = top_vertices + bottom_vertices
+        edges = top_edges + bottom_edges
+        booth_top_mesh = bpy.data.meshes.new('booth') # create Mesh object
+        booth_top_mesh.from_pydata(vertices, edges, [])
+        booth_top_mesh.update()
+        bm = bmesh.new() # create BMesh object
+        bm.from_mesh(booth_top_mesh) # take Mesh object and turn to BMesh
+        bmesh.ops.contextual_create(bm, geom=bm.edges)
+        bm.to_mesh(booth_top_mesh) # take BMesh object and turn to Mesh
+        booth_top_mesh.update()
+        
+        # make booth object from booth mesh
+        booth_object = bpy.data.objects.new('booth_object', booth_top_mesh)
+        # make booth collection
+        booth_collection = bpy.data.collections.new('booth_collection')
+        bpy.context.scene.collection.children.link(booth_collection)
+        # add booth object to scene collection
+        booth_collection.objects.link(booth_object)
+
+
 class Cart:
     def __init__(self, center, width, height):
         self.center = center
@@ -350,7 +403,7 @@ class Wheel:
                     self.edges.append([wheel1_cross_spoke1_vertex, wheel1_cross_spoke2_vertex])
                     self.edges.append([wheel2_cross_spoke1_vertex, wheel2_cross_spoke2_vertex])
                     wheel1_circle_edges.append(total_edges) # remember index of newly added edge
-                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge               
+                    wheel2_circle_edges.append(total_edges + 1) # remember index of newly added edge             
                 else:
                     # connect the cross vertex on this spoke with the corresponding cross vertex on the next spoke
                     wheel1_cross_spoke1_vertex = self.wheel1["vertex_indices"]["crosses"]["spoke_" + str(j)][i] # cross vertex on this spoke of wheel1
@@ -413,6 +466,9 @@ ferris_wheel_collection = bpy.data.collections.new('ferris_wheel_collection')
 bpy.context.scene.collection.children.link(ferris_wheel_collection)
 # add ferris wheel object to scene collection
 ferris_wheel_collection.objects.link(ferris_wheel_object)
+
+
+new_booth = Booth("rectangle", "pointy", "flat", "food", 3, 2) # booth
 
 # test circle
 #v1 = new_wheel.vertices[new_wheel.edges[new_wheel.posts["edge_indices"]["wheel" + str(1)][0]][0]]
