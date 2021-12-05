@@ -106,18 +106,20 @@ def interpolate_edge_vertex(vertex_1, vertex_2, weight):
 def create_circle(normal, center, radius, num_vertices, circle_num): # determine plane orthogonal to a given normal vector containing "center" point and create a circle of "radius" with vertices on that plane around the center point; returns a list of vertices defining the circle
         theta = (2 * pi) / num_vertices # calculate angle of each slice of the circle
         circle_center = np.asarray(center) # the center of the circle, given
+        if normal[2] == 0:
+            normal = (0.0, 0.0, 1.0) # perpendicular to x,y plane
         plane = (normal[0], normal[1], normal[2], (normal[0] * center[0] + normal[1] * center[1] + normal[2] * center[2])) # stores (a, b, c, d) for plane ax + by + cz = d orthogonal to a given vector "normal"
-        point1 = (1.0, 3.0, 0.0) # define x and y of point1, arbitrary
-        point1_z = -1.0 * (plane[0] * point1[0] + plane[1] * point1[1] - plane[3])/ plane[2] # compute z so that the point lays on the plane
+        point1 = (center[0] + 1.0, center[1] + 1.0, 0.0) # define x and y of point1, arbitrary
+        point1_z = -1.0 * (plane[0] * point1[0] + plane[1] * point1[1] - plane[3])/ plane[2] # compute z so that the point lays on the plane; need to make sure that plane[2] isn't 0
         point1 = (point1[0], point1[1], point1_z) # point1 on the plane
-        
-        point2 = (2.0, 6.0, 0.0) # define x and y of point2, arbitrary
-        point2_z = -1.0 * (plane[0] * point2[0] + plane[1] * point2[1] - plane[3])/ plane[2] # compute z so that the point lays on the plane
+        point2 = (center[0] - 2.0, center[1] - 2.0, 0.0) # define x and y of point2, arbitrary
+        point2_z = -1.0 * (plane[0] * point2[0] + plane[1] * point2[1] - plane[3])/ plane[2] # compute z so that the point lays on the plane; need to make sure that plane[2] isn't 0
         point2 = (point2[0], point2[1], point2_z) # point2 on the plane
-        
         vector_1 = np.asarray(point1) - np.asarray(center) # vector 1 defining plane containing circle
         vector_2 = np.asarray(point2) - np.asarray(center) # vector 2 defining plane containing circle
         v1v2_cross = np.cross(vector_1, vector_2) # get cross product of two vectors to get a vector normal to the plane with the circle
+        if v1v2_cross[0] == 0 and v1v2_cross[1] == 0 and  v1v2_cross[2] == 0:
+            v1v2_cross = np.asarray((0.0, 0.0, 1.0)) # perpendicular to x,y plane
         v1v2_cross_normalized = v1v2_cross / np.linalg.norm(v1v2_cross) # normalize the vector that's normal to the plane containing the circle
         u = vector_1 / np.linalg.norm(vector_1) # get unit vector to serve as "x-axis" of the plane
         v = np.cross(u, v1v2_cross_normalized) # get vector to serve as "y-axis" of the plane
@@ -490,7 +492,8 @@ class Wheel:
         for i in range(self.num_carts):
             self.edges.append([wheel1_circle_vertices[i], wheel2_circle_vertices[i]]) # create an edge between the corresponding vertices on the two wheels
             wheel_rings.append(total_edges + i) # store what index that newly added edge is within the entire edges list
-        self.posts["edge_indices"]["rings"] = wheel_rings
+        self.wheel1["edge_indices"]["rings"] = wheel_rings
+        self.wheel2["edge_indices"]["rings"] = wheel_rings
             
     def create_posts(self, wheel, wheel_num):
         # wheel_num is either 1 or 2, depending on which wheel of this ferris wheel is specified to create posts for
@@ -646,7 +649,7 @@ class Wheel:
         cart_collection = bpy.data.collections.new('cart_collection')
         bpy.context.scene.collection.children.link(cart_collection)
         # add cart object to scene collection
-        ring_edge_indices = self.posts["edge_indices"]["rings"] # get the indices of the edges of the rings
+        ring_edge_indices = self.wheel1["edge_indices"]["rings"] # get the indices of the edges of the rings
         print("ring_edge_indices" + str(ring_edge_indices))
         for i in range(num_carts): 
             # get center of ring
@@ -665,7 +668,7 @@ class Wheel:
         # create wheel object from a list of vertices and edges
         wheel_cylinders = []
         post_cylinders = []
-        radius = 0.05 # TEST
+        radius = 0.1 # TEST
         
         # every edge is a cylinder
         wheel1_edge_indices = get_all_values(self.wheel1["edge_indices"], []) # get all edge indices of the edges that make up wheel1
@@ -699,6 +702,6 @@ class Wheel:
  
 # test
 # new_wheel = Wheel((1.0, 2.0, 1.0), 15, 3) # smaller wheel
-new_wheel = Wheel((1.0, 2.0, 1.0), 15, 8) # larger wheel
+new_wheel = Wheel((1.0, 2.0, 1.0), 12, 10) # larger wheel
 
 flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8) # flat top booth
