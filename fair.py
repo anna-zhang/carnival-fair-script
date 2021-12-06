@@ -270,12 +270,12 @@ class Booth:
             top_v6 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
             top_hexagon_vertices = [top_v1, top_v2, top_v3, top_v4, top_v5, top_v6]
             # the bottom of the top hexagonal prism of the booth
-            top_v7 = (center[0] + 0.5 * width, center[1], center[2] + 0.5 * height)
-            top_v8 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-            top_v9 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
-            top_v10 = (center[0] - 0.5 * width, center[1], center[2] + 0.5 * height)
-            top_v11 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
-            top_v12 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            top_v7 = (center[0] + 0.5 * width, center[1], center[2] + 0.30 * height)
+            top_v8 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.30 * height)
+            top_v9 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.30 * height)
+            top_v10 = (center[0] - 0.5 * width, center[1], center[2] + 0.30 * height)
+            top_v11 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.30 * height)
+            top_v12 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.30 * height)
             bottom_hexagon_vertices = [top_v7, top_v8, top_v9, top_v10, top_v11, top_v12]
             top_vertices = top_hexagon_vertices + bottom_hexagon_vertices
             self.top["vertex_indices"]["top_hexagon"] = [i + num_vertices for i in range(len(top_hexagon_vertices))] # remember the vertex indices of the vertices making up the top hexagon
@@ -296,6 +296,7 @@ class Booth:
     
     
     def create_poles(self, shape, width, length, height):
+        poles = []
         if shape == "rectangle":
             # get the vertices and edges forming the surface of the top of the booth that the pole connects to
             top_vertices = self.top["vertex_indices"]["bottom_rect"]
@@ -308,7 +309,6 @@ class Booth:
                 radius = 1/12 * self.length
             
             # create cylinder poles near each of the vertices in top_vertices
-            poles = []
             for i in range(len(top_vertices)):
                 top_vertex = self.vertices[top_vertices[i]]
                 if top_vertex[0] < self.center[0]:
@@ -329,11 +329,44 @@ class Booth:
                 new_pole = Cylinder(top_vertex, bottom_vertex, radius) # create the cylinder pole
                 poles.append(new_pole)
             
-            # make cylinder collection
-            cylinder_collection = bpy.data.collections.new('cylinder_collection')
-            bpy.context.scene.collection.children.link(cylinder_collection)
-            cylinders_to_obj(poles, cylinder_collection) # create object out of list of cylinder poles
+        elif shape == "hexagon":
+            # get the vertices and edges forming the surface of the top of the booth that the pole connects to
+            top_vertices = self.top["vertex_indices"]["bottom_hexagon"]
+            print("top_vertices")
+            print(top_vertices)
             
+            # radius of the pole is 1/12 the length of the shortest side of the rectangle that fits inside the hexagon
+            radius = 0
+            if self.length > self.width:
+                radius = 1/12 * self.width
+            else:
+                radius = 1/12 * self.length
+            
+            # create cylinder poles near each of the rectangle vertices in top_vertices
+            rect_vertex_indices = [1, 2, 4, 5] # in the array of bottom_hexagon vertices, these are the indices of the vertices forming a rectangle within the hexagonal shape
+            for i in rect_vertex_indices:
+                top_vertex = self.vertices[top_vertices[i]]
+                if top_vertex[0] < self.center[0]:
+                    # vertex has a smaller x than the center of the booth
+                    x_displacement = radius
+                else:
+                    x_displacement = -1.0 * radius
+                
+                if top_vertex[1] < self.center[1]:
+                    # vertex has a smaller y than the center of the booth
+                    y_displacement = radius
+                else:
+                    y_displacement = -1.0 * radius
+                
+                top_vertex = (top_vertex[0] + x_displacement, top_vertex[1] + y_displacement, top_vertex[2])
+                bottom_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - height)
+                new_pole = Cylinder(top_vertex, bottom_vertex, radius) # create the cylinder pole
+                poles.append(new_pole)
+
+        # make cylinder collection
+        cylinder_collection = bpy.data.collections.new('cylinder_collection')
+        bpy.context.scene.collection.children.link(cylinder_collection)
+        cylinders_to_obj(poles, cylinder_collection) # create object out of list of cylinder poles
 
         # TEST CREATE BOOTH    
         booth_top_mesh = bpy.data.meshes.new('booth') # create Mesh object
@@ -749,4 +782,5 @@ class Wheel:
 # new_wheel = Wheel((1.0, 2.0, 1.0), 15, 3) # smaller wheel
 new_wheel = Wheel((1.0, 2.0, 1.0), 12, 10) # larger wheel
 
-flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8) # flat top booth
+# flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8) # flat top booth
+hex_booth = Booth("hexagon", "flat", "flat", "food", 4, 8) # flat top booth
