@@ -746,7 +746,10 @@ class Wheel:
         # create wheel object from a list of vertices and edges
         wheel_cylinders = []
         post_cylinders = []
-        radius = 0.10 # TEST
+        
+        # compute thickness of the bars forming the ferris wheel depending on user-specified wheel size
+        wheel_size = self.size 
+        radius = wheel_size * 0.01
         
         # every edge is a cylinder
         wheel1_edge_indices = get_all_values(self.wheel1["edge_indices"], []) # get all edge indices of the edges that make up wheel1
