@@ -106,24 +106,69 @@ def interpolate_edge_vertex(vertex_1, vertex_2, weight):
 def create_circle(normal, center, radius, num_vertices, circle_num): # determine plane orthogonal to a given normal vector containing "center" point and create a circle of "radius" with vertices on that plane around the center point; returns a list of vertices defining the circle
         theta = (2 * pi) / num_vertices # calculate angle of each slice of the circle
         circle_center = np.asarray(center) # the center of the circle, given
-        if normal[2] == 0:
-            normal = (0.0, 0.0, 1.0) # perpendicular to x,y plane
-        plane = (normal[0], normal[1], normal[2], (normal[0] * center[0] + normal[1] * center[1] + normal[2] * center[2])) # stores (a, b, c, d) for plane ax + by + cz = d orthogonal to a given vector "normal"
-        point1 = (center[0] + 1.0, center[1] + 1.0, 0.0) # define x and y of point1, arbitrary
-        point1_z = -1.0 * (plane[0] * point1[0] + plane[1] * point1[1] - plane[3])/ plane[2] # compute z so that the point lays on the plane; need to make sure that plane[2] isn't 0
-        point1 = (point1[0], point1[1], point1_z) # point1 on the plane
-        point2 = (center[0] - 2.0, center[1] - 2.0, 0.0) # define x and y of point2, arbitrary
-        point2_z = -1.0 * (plane[0] * point2[0] + plane[1] * point2[1] - plane[3])/ plane[2] # compute z so that the point lays on the plane; need to make sure that plane[2] isn't 0
-        point2 = (point2[0], point2[1], point2_z) # point2 on the plane
+        # compute the plane with normal "normal" and that includes the point "center"
+        plane_A = normal[0]
+        plane_B = normal[1]
+        plane_C = normal[2]
+        plane_D = (normal[0] * center[0] + normal[1] * center[1] + normal[2] * center[2])
+        plane = (plane_A, plane_B, plane_C, plane_D) # stores (a, b, c, d) for plane ax + by + cz = d orthogonal to a given vector "normal"
+        # compute two other points that lay on this plane 
+        point1 = (0.0, 0.0, 0.0) # holder for point1 on the plane
+        point2 = (0.0, 0.0, 0.0) # holder for point2 on the plane
+        # find two points on the plane
+        if plane_C != 0:
+            # compute point1
+            point1_a = (center[0] + 1)
+            point1_b = center[1]
+            point1_c = center[2] + (-1.0 * plane_A / plane_C)
+            point1 = (point1_a, point1_b, point1_c)
+            # compute point2
+            point2_a = center[0]
+            point2_b = center[1] + 1
+            point2_c = center[2] + (-1.0 * plane_B / plane_C)
+            point2 = (point2_a, point2_b, point2_c)
+        elif plane_A != 0:
+            # compute point1
+            point1_a = center[0] + (-1.0 * plane_B / plane_A)
+            point1_b = center[1] + 1
+            point1_c = center[2]
+            point1 = (point1_a, point1_b, point1_c)
+            # compute point2
+            point2_a = center[0] + (-1.0 * plane_C / plane_A)
+            point2_b = center[1]
+            point2_c = center[2] + 1
+            point2 = (point2_a, point2_b, point2_c)
+        else: # plane_B is not 0
+            # compute point1
+            point1_a = center[0] + 1
+            point1_b = center[1] + (-1.0 * plane_A / plane_B)
+            point1_c = center[2]
+            point1 = (point1_a, point1_b, point1_c)
+            # compute point2
+            point2_a = center[0]
+            point2_b = center[1] + (-1.0 * plane_C / plane_B)
+            point2_c = center[2] + 1
+            point2 = (point2_a, point2_b, point2_c)
+        
         vector_1 = np.asarray(point1) - np.asarray(center) # vector 1 defining plane containing circle
+        print("vector_1")
+        print(vector_1)
         vector_2 = np.asarray(point2) - np.asarray(center) # vector 2 defining plane containing circle
+        print("vector_2")
+        print(vector_2)
         v1v2_cross = np.cross(vector_1, vector_2) # get cross product of two vectors to get a vector normal to the plane with the circle
-        if v1v2_cross[0] == 0 and v1v2_cross[1] == 0 and  v1v2_cross[2] == 0:
-            v1v2_cross = np.asarray((0.0, 0.0, 1.0)) # perpendicular to x,y plane
+        print("v1v2_cross")
+        print(v1v2_cross)
         v1v2_cross_normalized = v1v2_cross / np.linalg.norm(v1v2_cross) # normalize the vector that's normal to the plane containing the circle
+        print("v1v2_cross_normalized")
+        print(v1v2_cross_normalized)
         u = vector_1 / np.linalg.norm(vector_1) # get unit vector to serve as "x-axis" of the plane
         v = np.cross(u, v1v2_cross_normalized) # get vector to serve as "y-axis" of the plane
         v = v / np.linalg.norm(v) # normalize v to get the unit "y-axis" of the plane
+        print("u")
+        print(u)
+        print("v")
+        print(v)
         print("dot product: " + str(np.dot(u, v))) # make sure dot product of u and v = 0 so the axes are perpendicular
         
         # create vertices forming the circle
@@ -668,7 +713,7 @@ class Wheel:
         # create wheel object from a list of vertices and edges
         wheel_cylinders = []
         post_cylinders = []
-        radius = 0.1 # TEST
+        radius = 0.10 # TEST
         
         # every edge is a cylinder
         wheel1_edge_indices = get_all_values(self.wheel1["edge_indices"], []) # get all edge indices of the edges that make up wheel1
