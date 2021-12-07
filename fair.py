@@ -5,6 +5,8 @@ import numpy as np
 from bpy.props import BoolProperty, FloatProperty, IntProperty, PointerProperty
 from bpy.types import Operator, Panel, PropertyGroup
 import bmesh
+import math
+import random
 
 test_vertices = []
 test_edges = []
@@ -82,6 +84,7 @@ def cylinders_to_obj(cylinders, collection):
     cylinder_object = bpy.data.objects.new('cylinder_object', cylinder_mesh)
     # add it to the cylinder collection
     collection.objects.link(cylinder_object)
+    return cylinder_object # return reference to Blender object
     
     
 def get_all_values(dictionary, int_values): # given a dictionary (with potentially multiple layers), get all integer values using recursion; int_values is initially an empty list
@@ -191,15 +194,16 @@ def create_circle(normal, center, radius, num_vertices, circle_num): # determine
 
 
 class Booth: 
-    def __init__(self, base_shape, top_style, top_border, purpose, width, length):
+    def __init__(self, base_shape, top_style, top_border, purpose, width, length, height, center):
         self.base_shape = base_shape # square, rectangle, hexagon
         self.top_style = top_style # flat, pointy
         self.top_border = top_border # flat, mini triangle flags, mini half hexagon flags
         self.purpose = purpose # food, games
         self.width = width # helps define the size of the booth (where the structural poles supporting it go)
         self.length = length # helps define the size of the booth (where the structural poles supporting it go)
-        self.height = 3 # total height of the booth
-        self.center = (20.0, 0.0, 0.0) # test
+        self.height = height # total height of the booth
+        self.top_height = 0.10 * self.height # height of the top of the booth
+        self.center = center # test
         
         self.vertices = []
         self.edges = []
@@ -209,9 +213,17 @@ class Booth:
         self.bottom = {"vertex_indices": {}, "edge_indices": {}}
         self.poles = {"vertex_indices": {}, "edge_indices": {}}
         
+        self.set_random_values()
         self.create_top(self.base_shape, self.top_style, self.top_border, self.width, self.length, self.height, self.center) # test
         self.create_poles(self.base_shape, self.width, self.length, self.height) # test
+        self.create_bottom(self.base_shape) # test
+        self.create_booth_obj()
         
+    def set_random_values(self):
+        random_num = 1
+        while random_num < 0.05 or random_num > 0.3:
+            random_num = random.random()
+        self.top_height = self.height * random_num
     
     def create_top(self, shape, style, border, width, length, height, center):
         top_vertices = []
@@ -220,18 +232,22 @@ class Booth:
         num_edges = len(self.edges) # current number of edges in the object
         if style == "pointy":
             # pointy booth top
-            top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height - self.top_height)
             # top_v1_index = num_vertices
-            top_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height)
+            top_v2 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height - self.top_height)
             # top_v2_index = num_vertices + 1
-            top_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            top_v3 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height - self.top_height)
             # top_v3_index = num_vertices + 2
-            top_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
+            top_v4 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height - self.top_height)
             # top_v4_index = num_vertices + 3
-            top_pointy_vertex = (center[0], center[1], center[2] + 0.75 * height)
+            top_pointy_vertex = (center[0], center[1], center[2] + 0.5 * height)
             # top_pointy_vertex_index = num_vertices + 4
             top_vertices = [top_pointy_vertex, top_v1, top_v2, top_v3, top_v4]
             top_edges = [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (2, 3), (3, 4), (4, 1)]
+            self.top["vertex_indices"]["point"] = [i + num_vertices for i in range(1)] # remember the vertex indices of the vertices making up the top rectangle
+            self.top["vertex_indices"]["bottom_rect"] = [i + num_vertices + len(top_vertices) for i in range(1, len(top_vertices))] # remember the vertex indices of the vertices making up the bottom rectangle
+            self.vertices = self.vertices + top_vertices
+            self.edges = self.edges + top_edges
             
         # flat booth top
         elif shape == "rectangle":
@@ -243,10 +259,10 @@ class Booth:
             top_rect_vertices = [top_v1, top_v2, top_v3, top_v4]
             
             # the bottom of the top rectangular prism of the booth
-            top_v5 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.45 * height)
-            top_v6 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.45 * height)
-            top_v7 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.45 * height)
-            top_v8 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.45 * height)
+            top_v5 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height - self.top_height)
+            top_v6 = (center[0] - 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height - self.top_height)
+            top_v7 = (center[0] - 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height - self.top_height)
+            top_v8 = (center[0] + 0.5 * width, center[1] - 0.5 * length, center[2] + 0.5 * height - self.top_height)
             bottom_rect_vertices = [top_v5, top_v6, top_v7, top_v8]
             
             top_vertices = top_rect_vertices + bottom_rect_vertices # all vertices forming the top of the booth
@@ -254,7 +270,7 @@ class Booth:
             self.top["vertex_indices"]["bottom_rect"] = [i + num_vertices + len(top_rect_vertices) for i in range(len(bottom_rect_vertices))] # remember the vertex indices of the vertices making up the bottom rectangle
             
             top_rect_edges = [(0, 1), (1, 2), (2, 3), (3, 0)] # form the top of the top rectangular prism of the booth
-            bottom_rect_edges = [(4, 5), (5, 6), (6, 7), (7, 0)] # form the bottom of the top rectangular prism of the booth
+            bottom_rect_edges = [(4, 5), (5, 6), (6, 7), (7, 4)] # form the bottom of the top rectangular prism of the booth
             connect_rect_edges = [(0, 4), (1, 5), (2, 6), (3, 7)] # connect the top and bottom of the top rectangular prism
             
             top_edges = top_rect_edges + bottom_rect_edges + connect_rect_edges
@@ -270,12 +286,12 @@ class Booth:
             top_v6 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height)
             top_hexagon_vertices = [top_v1, top_v2, top_v3, top_v4, top_v5, top_v6]
             # the bottom of the top hexagonal prism of the booth
-            top_v7 = (center[0] + 0.5 * width, center[1], center[2] + 0.30 * height)
-            top_v8 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.30 * height)
-            top_v9 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.30 * height)
+            top_v7 = (center[0] + 0.5 * width, center[1], center[2] + 0.5 * height - self.top_height)
+            top_v8 = (center[0] + 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height - self.top_height)
+            top_v9 = (center[0] - 0.35 * width, center[1] + 0.5 * length, center[2] + 0.5 * height - self.top_height)
             top_v10 = (center[0] - 0.5 * width, center[1], center[2] + 0.30 * height)
-            top_v11 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.30 * height)
-            top_v12 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.30 * height)
+            top_v11 = (center[0] - 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height - self.top_height)
+            top_v12 = (center[0] + 0.35 * width, center[1] - 0.5 * length, center[2] + 0.5 * height - self.top_height)
             bottom_hexagon_vertices = [top_v7, top_v8, top_v9, top_v10, top_v11, top_v12]
             top_vertices = top_hexagon_vertices + bottom_hexagon_vertices
             self.top["vertex_indices"]["top_hexagon"] = [i + num_vertices for i in range(len(top_hexagon_vertices))] # remember the vertex indices of the vertices making up the top hexagon
@@ -325,7 +341,7 @@ class Booth:
                 
                 
                 top_vertex = (top_vertex[0] + x_displacement, top_vertex[1] + y_displacement, top_vertex[2])
-                bottom_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - height)
+                bottom_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - height + self.top_height)
                 new_pole = Cylinder(top_vertex, bottom_vertex, radius) # create the cylinder pole
                 poles.append(new_pole)
             
@@ -359,7 +375,7 @@ class Booth:
                     y_displacement = -1.0 * radius
                 
                 top_vertex = (top_vertex[0] + x_displacement, top_vertex[1] + y_displacement, top_vertex[2])
-                bottom_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - height)
+                bottom_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - height + self.top_height)
                 new_pole = Cylinder(top_vertex, bottom_vertex, radius) # create the cylinder pole
                 poles.append(new_pole)
 
@@ -367,7 +383,30 @@ class Booth:
         cylinder_collection = bpy.data.collections.new('cylinder_collection')
         bpy.context.scene.collection.children.link(cylinder_collection)
         cylinders_to_obj(poles, cylinder_collection) # create object out of list of cylinder poles
+    
+    def create_bottom(self, shape):
+        top_vertices = []
+        if shape == "rectangle":
+            # get the vertices and edges forming the surface of the top of the booth
+            top_vertices = self.top["vertex_indices"]["bottom_rect"] # indices of top vertices
+        elif shape == "hexagon":
+            hexagon_vertices = self.top["vertex_indices"]["top_hexagon"]
+            top_vertices = [hexagon_vertices[1], hexagon_vertices[2], hexagon_vertices[4], hexagon_vertices[5]] # indices of top vertices
+            
+        if len(top_vertices) != 4:
+            # error
+            return
+        base_bottom_vertices = [] # holds indices of the base's bottom vertices
+        base_top_vertices = [] # holds indices of the base's top vertices
+        booth_height = 0.2 * self.height
+        for vertex_index in top_vertices:
+            top_vertex = self.vertices[vertex_index]
+            base_bottom_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - self.height + self.top_height) # corresponding bottom vertex on the booth base
+            base_top_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - self.height + self.top_height + booth_height)
+            self.vertices.append(base_bottom_vertex)
+            self.vertices.append(base_top_vertex)
 
+    def create_booth_obj(self):
         # TEST CREATE BOOTH    
         booth_top_mesh = bpy.data.meshes.new('booth') # create Mesh object
         booth_top_mesh.from_pydata(self.vertices, self.edges, [])
@@ -384,7 +423,7 @@ class Booth:
         booth_collection = bpy.data.collections.new('booth_collection')
         bpy.context.scene.collection.children.link(booth_collection)
         # add booth object to scene collection
-        booth_collection.objects.link(booth_object)
+        booth_collection.objects.link(booth_object)       
 
 
 class Cart:
@@ -511,6 +550,8 @@ class Wheel:
         self.posts = {"vertex_indices": {}, "edge_indices": {}}
         self.cart_width = 0.20 * self.size * 0.5 # size of each ring (which is 0.30 * self.size) and then divide by 2
         self.cart_height = (self.size / (num_carts / 4)) # approximate the height each cart can take up
+        self.cart_objs = [] # list of cart objects
+        self.obj = None # wheel object
         
         self.create_wheel((self.center[0], self.center[1] - (0.10 * self.size), self.center[2]), self.size, self.num_carts, self.wheel1) # 2.0 is the radius of a ring holding a cart
         self.create_wheel((self.center[0], self.center[1] + (0.10 * self.size), self.center[2]), self.size, self.num_carts, self.wheel2)
@@ -741,6 +782,7 @@ class Wheel:
             top_center = (ring_v1[0] + 0.5 * (ring_v2[0] - ring_v1[0]), ring_v1[1] + 0.5 * (ring_v2[1] - ring_v1[1]), ring_v1[2] + 0.5 * (ring_v2[2] - ring_v1[2]))
             new_cart = Cart(top_center, self.cart_width, self.cart_height)
             cart_collection.objects.link(new_cart.obj) # add the newly created cart object to the cart_collection
+            self.cart_objs.append(new_cart.obj)
     
     def create_wheel_obj(self):
         # create wheel object from a list of vertices and edges
@@ -749,7 +791,7 @@ class Wheel:
         
         # compute thickness of the bars forming the ferris wheel depending on user-specified wheel size
         wheel_size = self.size 
-        radius = wheel_size * 0.01
+        radius = wheel_size * 0.01 
         
         # every edge is a cylinder
         wheel1_edge_indices = get_all_values(self.wheel1["edge_indices"], []) # get all edge indices of the edges that make up wheel1
@@ -777,13 +819,14 @@ class Wheel:
         # make ferris wheel collection
         ferris_wheel_collection = bpy.data.collections.new('ferris_wheel_collection')
         bpy.context.scene.collection.children.link(ferris_wheel_collection)
-        cylinders_to_obj(wheel_cylinders, ferris_wheel_collection) # create the ferris wheel
-        cylinders_to_obj(post_cylinders, ferris_wheel_collection) # create the ferris wheel posts
-        
+        wheel_obj = cylinders_to_obj(wheel_cylinders, ferris_wheel_collection) # create the ferris wheel
+        self.obj = wheel_obj
+        cylinders_to_obj(post_cylinders, ferris_wheel_collection) # create the ferris wheel posts       
  
 # test
 # new_wheel = Wheel((1.0, 2.0, 1.0), 15, 3) # smaller wheel
 new_wheel = Wheel((1.0, 2.0, 1.0), 12, 10) # larger wheel
 
-# flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8) # flat top booth
-hex_booth = Booth("hexagon", "flat", "flat", "food", 4, 8) # flat top booth
+flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8, 5, (13.0, 8.0, 0.0)) # flat top booth
+#hex_booth = Booth("hexagon", "flat", "flat", "food", 5, 4, 6, (20.0, 7.0, 0.0)) # flat top booth
+#pointy_booth = Booth("rectangle", "pointy", "flat", "food", 3, 3, 3, (20.0, 0.0, 0.0)) # flat top booth
