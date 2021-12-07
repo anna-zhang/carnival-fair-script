@@ -386,25 +386,44 @@ class Booth:
     
     def create_bottom(self, shape):
         top_vertices = []
+        num_vertices = len(self.vertices) # number of current vertices
+        num_edges = len(self.edges) # number of current edges
         if shape == "rectangle":
             # get the vertices and edges forming the surface of the top of the booth
             top_vertices = self.top["vertex_indices"]["bottom_rect"] # indices of top vertices
         elif shape == "hexagon":
-            hexagon_vertices = self.top["vertex_indices"]["top_hexagon"]
+            hexagon_vertices = self.top["vertex_indices"]["bottom_hexagon"]
             top_vertices = [hexagon_vertices[1], hexagon_vertices[2], hexagon_vertices[4], hexagon_vertices[5]] # indices of top vertices
             
         if len(top_vertices) != 4:
             # error
             return
         base_bottom_vertices = [] # holds indices of the base's bottom vertices
-        base_top_vertices = [] # holds indices of the base's top vertices
+        base_top_vertices = [] # holds indices of the base's top verticesb
         booth_height = 0.2 * self.height
         for vertex_index in top_vertices:
             top_vertex = self.vertices[vertex_index]
             base_bottom_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - self.height + self.top_height) # corresponding bottom vertex on the booth base
             base_top_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - self.height + self.top_height + booth_height)
-            self.vertices.append(base_bottom_vertex)
-            self.vertices.append(base_top_vertex)
+            base_bottom_vertices.append(base_bottom_vertex)
+            base_top_vertices.append(base_top_vertex)
+            
+        bottom_vertices = base_top_vertices + base_bottom_vertices 
+        self.bottom["vertex_indices"]["top_rect"] = [i + num_vertices for i in range(len(base_top_vertices))] # remember the vertex indices of the vertices making up the top rectangle
+        self.bottom["vertex_indices"]["bottom_rect"] = [i + num_vertices + len(base_top_vertices) for i in range(len(base_bottom_vertices))] # remember the vertex indices of the vertices making up the bottom rectangle
+        
+        top_rect_edges = [(0, 1), (1, 2), (2, 3), (3, 0)] # form the top of the rectangular prism of the booth
+        bottom_rect_edges = [(4, 5), (5, 6), (6, 7), (7, 4)] # form the bottom of the rectangular prism of the booth
+        connect_rect_edges = [(0, 4), (1, 5), (2, 6), (3, 7)] # connect the top and bottom of the rectangular prism
+        bottom_edges = top_rect_edges + bottom_rect_edges + connect_rect_edges
+        self.bottom["edge_indices"]["top_rect"] = [i + num_edges for i in range(len(top_rect_edges))] # remember the edge indices of the edges making up the top rectangle
+        self.bottom["edge_indices"]["bottom_rect"] = [i + num_edges + len(top_rect_edges) for i in range(len(bottom_rect_edges))] # remember the edge indices of the edges making up the bottom rectangle
+        self.top["edge_indices"]["connect_rect"] = [i + num_edges + len(top_rect_edges) + len(bottom_rect_edges) for i in range(len(connect_rect_edges))] # remember the edge indices of the edges connecting the top and bottom rectangles
+
+        bottom_edges = [(edge[0] + num_vertices, edge[1] + num_vertices) for edge in bottom_edges]
+        
+        self.vertices = self.vertices + bottom_vertices
+        self.edges = self.edges + bottom_edges      
 
     def create_booth_obj(self):
         # TEST CREATE BOOTH    
@@ -561,6 +580,7 @@ class Wheel:
         self.create_internal_support()
         self.create_carts()
         self.create_wheel_obj()
+        # self.animate_wheel(self.obj, self.cart_objs) # TEST
     
     def create_wheel(self, center, radius, num_vertices, wheel_dict): # add vertices of circle with center "center" and radius "radius"
             theta = (2 * pi) / num_vertices # calculate angle of each slice of the circle
