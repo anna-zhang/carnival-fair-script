@@ -11,6 +11,20 @@ import random
 test_vertices = []
 test_edges = []
 
+def create_obj(vertices, edges, name, collection): # create object with "name" from list of vertices and edges and add it to "collection"
+    mesh = bpy.data.meshes.new(name) # create Mesh object
+    mesh.from_pydata(vertices, edges, [])
+    mesh.update()
+    bm = bmesh.new() # create BMesh object
+    bm.from_mesh(mesh) # take Mesh object and turn to BMesh
+    bmesh.ops.contextual_create(bm, geom=bm.edges)
+    bm.to_mesh(mesh) # take BMesh object and turn to Mesh
+    mesh.update()
+    object = bpy.data.objects.new(name + '_object', mesh)
+    collection.objects.link(object) # add object to the collection
+    return object
+
+
 class Circle:
     def __init__(self, center, radius, vertices, edges):
         self.center = center # the location of the center of the vertex
@@ -194,7 +208,7 @@ def create_circle(normal, center, radius, num_vertices, circle_num): # determine
 
 
 class Booth: 
-    def __init__(self, base_shape, top_style, top_border, purpose, width, length, height, center):
+    def __init__(self, base_shape, top_style, top_border, purpose, width, length, height, center, booth_num):
         self.base_shape = base_shape # square, rectangle, hexagon
         self.top_style = top_style # flat, pointy
         self.top_border = top_border # flat, mini triangle flags, mini half hexagon flags
@@ -204,6 +218,8 @@ class Booth:
         self.height = height # total height of the booth
         self.top_height = 0.10 * self.height # height of the top of the booth
         self.center = center # test
+        self.booth_num = booth_num # keep track of the booth number
+        self.booth_collection = None # collection with all of the booth parts
         
         self.vertices = []
         self.edges = []
@@ -214,9 +230,6 @@ class Booth:
         self.poles = {"vertex_indices": {}, "edge_indices": {}}
         
         self.set_random_values()
-        self.create_top(self.base_shape, self.top_style, self.top_border, self.width, self.length, self.height, self.center) # test
-        self.create_poles(self.base_shape, self.width, self.length, self.height) # test
-        self.create_bottom(self.base_shape) # test
         self.create_booth_obj()
         
     def set_random_values(self):
@@ -304,9 +317,10 @@ class Booth:
             self.top["edge_indices"]["top_hexagon"] = [i + num_edges for i in range(len(top_hexagon_edges))] # remember the edge indices of the edges making up the top hexagon
             self.top["edge_indices"]["bottom_hexagon"] = [i + num_edges + len(top_hexagon_edges) for i in range(len(bottom_hexagon_edges))] # remember the edge indices of the edges making up the bottom hexagon
             self.top["edge_indices"]["connect_hexagons"] = [i + num_edges + len(top_hexagon_edges) + len(bottom_hexagon_edges) for i in range(len(connect_hexagon_edges))] # remember the edge indices of the edges connecting the top and bottom hexagons
-
+    
+        booth_top = create_obj(top_vertices, top_edges, "booth_top_" + str(self.booth_num), self.booth_collection) # create booth top object
+      
         top_edges = [(edge[0] + num_vertices, edge[1] + num_vertices) for edge in top_edges]
-        
         self.vertices = self.vertices + top_vertices
         self.edges = self.edges + top_edges
     
@@ -380,9 +394,7 @@ class Booth:
                 poles.append(new_pole)
 
         # make cylinder collection
-        cylinder_collection = bpy.data.collections.new('cylinder_collection')
-        bpy.context.scene.collection.children.link(cylinder_collection)
-        cylinders_to_obj(poles, cylinder_collection) # create object out of list of cylinder poles
+        cylinders_to_obj(poles, self.booth_collection) # create object out of list of cylinder poles and add the poles to the booth collection
     
     def create_bottom(self, shape):
         top_vertices = []
@@ -419,30 +431,23 @@ class Booth:
         self.bottom["edge_indices"]["top_rect"] = [i + num_edges for i in range(len(top_rect_edges))] # remember the edge indices of the edges making up the top rectangle
         self.bottom["edge_indices"]["bottom_rect"] = [i + num_edges + len(top_rect_edges) for i in range(len(bottom_rect_edges))] # remember the edge indices of the edges making up the bottom rectangle
         self.top["edge_indices"]["connect_rect"] = [i + num_edges + len(top_rect_edges) + len(bottom_rect_edges) for i in range(len(connect_rect_edges))] # remember the edge indices of the edges connecting the top and bottom rectangles
-
+        
+        booth_bottom = create_obj(bottom_vertices, bottom_edges, "booth_bottom_" + str(self.booth_num), self.booth_collection) # create booth bottom object
         bottom_edges = [(edge[0] + num_vertices, edge[1] + num_vertices) for edge in bottom_edges]
         
         self.vertices = self.vertices + bottom_vertices
-        self.edges = self.edges + bottom_edges      
+        self.edges = self.edges + bottom_edges
+     
 
     def create_booth_obj(self):
-        # TEST CREATE BOOTH    
-        booth_top_mesh = bpy.data.meshes.new('booth') # create Mesh object
-        booth_top_mesh.from_pydata(self.vertices, self.edges, [])
-        booth_top_mesh.update()
-        bm = bmesh.new() # create BMesh object
-        bm.from_mesh(booth_top_mesh) # take Mesh object and turn to BMesh
-        bmesh.ops.contextual_create(bm, geom=bm.edges)
-        bm.to_mesh(booth_top_mesh) # take BMesh object and turn to Mesh
-        booth_top_mesh.update()
-        
-        # make booth object from booth mesh
-        booth_object = bpy.data.objects.new('booth_object', booth_top_mesh)
         # make booth collection
-        booth_collection = bpy.data.collections.new('booth_collection')
+        booth_collection = bpy.data.collections.new('booth_' + str(self.booth_num) + '_collection')
         bpy.context.scene.collection.children.link(booth_collection)
-        # add booth object to scene collection
-        booth_collection.objects.link(booth_object)       
+        self.booth_collection = booth_collection
+        
+        self.create_top(self.base_shape, self.top_style, self.top_border, self.width, self.length, self.height, self.center) # test
+        self.create_poles(self.base_shape, self.width, self.length, self.height) # test
+        self.create_bottom(self.base_shape) # test      
 
 
 class Cart:
@@ -847,6 +852,9 @@ class Wheel:
 # new_wheel = Wheel((1.0, 2.0, 1.0), 15, 3) # smaller wheel
 new_wheel = Wheel((1.0, 2.0, 1.0), 12, 10) # larger wheel
 
-flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8, 5, (13.0, 8.0, 0.0)) # flat top booth
-#hex_booth = Booth("hexagon", "flat", "flat", "food", 5, 4, 6, (20.0, 7.0, 0.0)) # flat top booth
-#pointy_booth = Booth("rectangle", "pointy", "flat", "food", 3, 3, 3, (20.0, 0.0, 0.0)) # flat top booth
+flat_booth = Booth("rectangle", "flat", "flat", "food", 4, 8, 5, (13.0, 8.0, 0.0), 1) # flat top booth
+hex_booth = Booth("hexagon", "flat", "flat", "food", 5, 4, 6, (20.0, 7.0, 0.0), 2) # flat top booth
+pointy_booth = Booth("rectangle", "pointy", "flat", "food", 3, 3, 3, (20.0, 0.0, 0.0), 3) # flat top booth
+flat_booth = Booth("rectangle", "flat", "flat", "food", 2, 4, 2, (1.0, 3.0, 0.0), 4) # flat top booth
+hex_booth = Booth("hexagon", "flat", "flat", "food", 3, 4, 3, (15.0, 3.0, 0.0), 5) # flat top booth
+pointy_booth = Booth("rectangle", "pointy", "flat", "food", 6, 3, 3, (20.0, 6.0, 0.0), 6) # flat top booth
