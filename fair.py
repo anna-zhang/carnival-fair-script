@@ -217,6 +217,8 @@ class Booth:
         self.length = length # helps define the size of the booth (where the structural poles supporting it go)
         self.height = height # total height of the booth
         self.top_height = 0.10 * self.height # height of the top of the booth
+        self.bottom_height = 0.10 * self.height # height of the bottom of the booth
+        self.bottom_type = "None" # default no bottom
         self.center = center # test
         self.booth_num = booth_num # keep track of the booth number
         self.booth_collection = None # collection with all of the booth parts
@@ -233,17 +235,39 @@ class Booth:
         self.create_booth_obj()
         
     def set_random_values(self):
-        random_num = 1
-        while random_num < 0.05 or random_num > 0.3:
-            random_num = random.random()
-        self.top_height = self.height * random_num
-    
+        random_top_num = 1
+        while random_top_num < 0.05 or random_top_num > 0.3:
+            # get a value between 0.05 and 0.3
+            random_top_num = random.random()
+        self.top_height = self.height * random_top_num
+        
+        bottom_type = random.randrange(3)
+        if bottom_type == 0:
+            # no bottom
+            self.bottom_type = "None"
+            self.bottom_height = 0.01
+        elif bottom_type == 1:
+            # skirt
+            self.bottom_type = "Skirt"
+            random_bottom_num = 1
+            while random_bottom_num < 0.25 or random_bottom_num > 0.50:
+                random_bottom_num = random.random()
+            self.bottom_height = self.height * random_bottom_num
+        else:
+            # ground
+            self.bottom_type = "Ground"
+            random_bottom_num = 1
+            while random_bottom_num < 0.1 or random_bottom_num > 0.2:
+                random_bottom_num = random.random()
+            self.bottom_height = self.height * random_bottom_num
+           
     def create_top(self, shape, style, border, width, length, height, center):
         top_vertices = []
         top_edges = []
         num_vertices = len(self.vertices) # current number of vertices in the object
         num_edges = len(self.edges) # current number of edges in the object
         if style == "pointy":
+            self.top_height = 0.30 * height
             # pointy booth top
             top_v1 = (center[0] + 0.5 * width, center[1] + 0.5 * length, center[2] + 0.5 * height - self.top_height)
             # top_v1_index = num_vertices
@@ -317,9 +341,9 @@ class Booth:
             self.top["edge_indices"]["top_hexagon"] = [i + num_edges for i in range(len(top_hexagon_edges))] # remember the edge indices of the edges making up the top hexagon
             self.top["edge_indices"]["bottom_hexagon"] = [i + num_edges + len(top_hexagon_edges) for i in range(len(bottom_hexagon_edges))] # remember the edge indices of the edges making up the bottom hexagon
             self.top["edge_indices"]["connect_hexagons"] = [i + num_edges + len(top_hexagon_edges) + len(bottom_hexagon_edges) for i in range(len(connect_hexagon_edges))] # remember the edge indices of the edges connecting the top and bottom hexagons
-    
+
         booth_top = create_obj(top_vertices, top_edges, "booth_top_" + str(self.booth_num), self.booth_collection) # create booth top object
-      
+
         top_edges = [(edge[0] + num_vertices, edge[1] + num_vertices) for edge in top_edges]
         self.vertices = self.vertices + top_vertices
         self.edges = self.edges + top_edges
@@ -412,7 +436,7 @@ class Booth:
             return
         base_bottom_vertices = [] # holds indices of the base's bottom vertices
         base_top_vertices = [] # holds indices of the base's top verticesb
-        booth_height = 0.2 * self.height
+        booth_height = self.bottom_height
         for vertex_index in top_vertices:
             top_vertex = self.vertices[vertex_index]
             base_bottom_vertex = (top_vertex[0], top_vertex[1], top_vertex[2] - self.height + self.top_height) # corresponding bottom vertex on the booth base
@@ -431,13 +455,31 @@ class Booth:
         self.bottom["edge_indices"]["top_rect"] = [i + num_edges for i in range(len(top_rect_edges))] # remember the edge indices of the edges making up the top rectangle
         self.bottom["edge_indices"]["bottom_rect"] = [i + num_edges + len(top_rect_edges) for i in range(len(bottom_rect_edges))] # remember the edge indices of the edges making up the bottom rectangle
         self.top["edge_indices"]["connect_rect"] = [i + num_edges + len(top_rect_edges) + len(bottom_rect_edges) for i in range(len(connect_rect_edges))] # remember the edge indices of the edges connecting the top and bottom rectangles
+
+        booth_bottom_mesh = bpy.data.meshes.new('booth') # create Mesh object
+        booth_bottom_mesh.from_pydata(bottom_vertices, bottom_edges, [])
+        booth_bottom_mesh.update()
+        bm = bmesh.new() # create BMesh object
+        bm.from_mesh(booth_bottom_mesh) # take Mesh object and turn to BMesh
+        bmesh.ops.contextual_create(bm, geom=bm.edges) # create faces from edges
+        if self.bottom_type == "Skirt":
+            # the top of the bottom is open
+            print("open bottom") # TEST
+            print([face for face in bm.faces]) # TEST: figure out what face to delete
+            faces_to_delete = [bm.faces[1]] # bm.faces[1] is the top face of the bottom
+            bmesh.ops.delete(bm, geom=faces_to_delete, context='FACES') # remove the unnecessary faces
         
-        booth_bottom = create_obj(bottom_vertices, bottom_edges, "booth_bottom_" + str(self.booth_num), self.booth_collection) # create booth bottom object
+        bm.to_mesh(booth_bottom_mesh) # take BMesh object and turn to Mesh
+        booth_bottom_mesh.update()
+        # make booth bottom object from booth bottom mesh
+        booth_bottom_obj = bpy.data.objects.new('booth_bottom_' + str(self.booth_num) + '_object', booth_bottom_mesh)
+        self.booth_collection.objects.link(booth_bottom_obj) # add object to the collection
+
+
         bottom_edges = [(edge[0] + num_vertices, edge[1] + num_vertices) for edge in bottom_edges]
         
         self.vertices = self.vertices + bottom_vertices
-        self.edges = self.edges + bottom_edges
-     
+        self.edges = self.edges + bottom_edges  
 
     def create_booth_obj(self):
         # make booth collection
@@ -447,7 +489,10 @@ class Booth:
         
         self.create_top(self.base_shape, self.top_style, self.top_border, self.width, self.length, self.height, self.center) # test
         self.create_poles(self.base_shape, self.width, self.length, self.height) # test
+        if self.bottom_type != "None":
+            self.create_bottom(self.base_shape) # test
         self.create_bottom(self.base_shape) # test      
+            self.create_bottom(self.base_shape) # test
 
 
 class Cart:
